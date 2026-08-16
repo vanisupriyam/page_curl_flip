@@ -220,6 +220,11 @@ Honest list — these are design decisions or open items, not surprises:
 
 ## Testing note
 
+**Golden baselines are macOS-rendered.** CI runs on `macos-latest` so the
+same rasterizer produces and checks them. If you regenerate goldens
+(`flutter test --update-goldens test/goldens_test.dart`), do it on macOS —
+baselines rendered on Linux or Windows will fail CI.
+
 The built-in sound uses the `audioplayers` plugin — the package's only
 dependency. Plugins have no implementation inside `flutter test`, so widget
 tests that flip pages should pass `enableSound: false` (or provide their own
