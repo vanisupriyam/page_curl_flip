@@ -14,7 +14,10 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          # Pinned to the version the package is developed and published
+          # with — CI must validate what ships, not whatever is newest.
+          # Bump deliberately (and re-run the full gate) when upgrading.
+          flutter-version: '3.32.4'
           cache: true
 
       - name: Dependencies
