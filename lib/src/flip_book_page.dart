@@ -57,10 +57,14 @@ class FlipBookPage {
   ///   pages[i].speechText(title: true, tagline: false, body: true),
   /// )
   /// ```
-  String speechText(
-      {bool title = true, bool tagline = true, bool body = true}) {
+  /// By default the voice reads **what the page shows**: a title hidden
+  /// from the page ([showTitleOnPage] false) is skipped unless the caller
+  /// explicitly passes `title: true`.
+  String speechText({bool? title, bool tagline = true, bool body = true}) {
+    final readTitle = title ?? showTitleOnPage;
     final parts = <String>[
-      if (title && (this.title?.trim().isNotEmpty ?? false)) this.title!.trim(),
+      if (readTitle && (this.title?.trim().isNotEmpty ?? false))
+        this.title!.trim(),
       if (tagline && (this.tagline?.trim().isNotEmpty ?? false))
         this.tagline!.trim(),
       if (body && (bodyText?.trim().isNotEmpty ?? false)) bodyText!.trim(),

@@ -9,6 +9,7 @@ library;
 
 export 'src/curl_overlay.dart';
 export 'src/flip_book.dart';
+export 'src/flip_book_icons.dart';
 export 'src/flip_book_page.dart';
 export 'src/flip_book_strings.dart';
 export 'src/flip_book_theme.dart';

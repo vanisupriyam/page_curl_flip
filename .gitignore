@@ -2,6 +2,8 @@
 .dart_tool/
 build/
 **/build/
+coverage/
+doc/api/
 .flutter-plugins
 .flutter-plugins-dependencies
 pubspec.lock
@@ -17,3 +19,7 @@ example/ios/.symlinks/
 .idea/
 *.iml
 .DS_Store
+
+# Golden-test failure output and stray screenshots.
+test/failures/
+flutter_*.png

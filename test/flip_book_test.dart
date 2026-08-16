@@ -49,9 +49,7 @@ void main() {
     });
 
     testWidgets('NEXT flips forward, PREV flips back', (tester) async {
-      // enableSound: false — the audio plugin has no test implementation, and
-      // constructing AudioPlayer in a test reports a MissingPluginException.
-      await tester.pumpWidget(_app(enableSound: false));
+      await tester.pumpWidget(_app());
 
       await tester.tap(find.text('NEXT'));
       await _finishFlip(tester);
@@ -65,8 +63,7 @@ void main() {
     });
 
     testWidgets('navigation works under RTL directionality', (tester) async {
-      await tester
-          .pumpWidget(_app(direction: TextDirection.rtl, enableSound: false));
+      await tester.pumpWidget(_app(direction: TextDirection.rtl));
 
       await tester.tap(find.text('NEXT'));
       await tester.pump();
@@ -75,9 +72,57 @@ void main() {
     });
 
     testWidgets(
+        'RTL-05: Arabic chevrons sit after their word and point with the '
+        'page direction', (tester) async {
+      final c = FlipBookController();
+      await tester.pumpWidget(MaterialApp(
+        home: FlipBook(
+          controller: c,
+          textDirection: TextDirection.rtl,
+          enableSound: false,
+          // Off so the hint's own chevrons stay out of the icon finders.
+          showSwipeHint: false,
+          onClose: () {},
+          strings: const FlipBookStrings(previous: 'السابق', next: 'التالي'),
+          pages: const [
+            FlipBookPage(title: 'a', body: Text('p1')),
+            FlipBookPage(title: 'b', body: Text('p2')),
+            FlipBookPage(title: 'c', body: Text('p3')),
+          ],
+        ),
+      ));
+      c.jumpToPage(1);
+      await tester.pump();
+
+      // Icons keep their identity (NEXT = icons.next = chevron_right);
+      // under RTL each arrow is mirrored VISUALLY by Transform.flip — which
+      // works for any custom icon — and the Row mirrors the positions.
+      // Net result on screen: ‹التالي … السابق›
+      final nextX = tester.getCenter(find.text('التالي')).dx;
+      final nextArrowX = tester.getCenter(find.byIcon(Icons.chevron_right)).dx;
+      expect(nextArrowX, lessThan(nextX),
+          reason: 'NEXT arrow must sit left of التالي');
+
+      final prevX = tester.getCenter(find.text('السابق')).dx;
+      final prevArrowX = tester.getCenter(find.byIcon(Icons.chevron_left)).dx;
+      expect(prevArrowX, greaterThan(prevX),
+          reason: 'PREV arrow must sit right of السابق');
+
+      // And the visual mirror itself is present on both arrows.
+      expect(
+        find.ancestor(
+          of: find.byIcon(Icons.chevron_right),
+          matching: find.byType(Transform),
+        ),
+        findsWidgets,
+        reason: 'RTL arrows must be visually mirrored',
+      );
+    });
+
+    testWidgets(
         'NAV-05: hammering NEXT during a flip advances exactly one page',
         (tester) async {
-      await tester.pumpWidget(_app(enableSound: false));
+      await tester.pumpWidget(_app());
       for (var i = 0; i < 5; i++) {
         await tester.tap(find.text('NEXT'), warnIfMissed: false);
         await tester.pump(const Duration(milliseconds: 20));
@@ -88,8 +133,140 @@ void main() {
       expect(find.text('page three'), findsNothing);
     });
 
+    testWidgets('SWP-01: a left swipe flips forward in LTR, right goes back',
+        (tester) async {
+      await tester.pumpWidget(_app());
+      await tester.fling(find.text('page one'), const Offset(-220, 0), 900);
+      await _finishFlip(tester);
+      expect(find.text('page two'), findsOneWidget);
+
+      await tester.fling(find.text('page two'), const Offset(220, 0), 900);
+      await tester.pump();
+      await _finishFlip(tester);
+      expect(find.text('page one'), findsOneWidget);
+    });
+
+    testWidgets('SWP-02: swipes mirror under RTL', (tester) async {
+      await tester.pumpWidget(_app(direction: TextDirection.rtl));
+      // RTL: rightward swipe goes forward.
+      await tester.fling(find.text('page one'), const Offset(220, 0), 900);
+      await tester.pump();
+      await _finishFlip(tester);
+      expect(find.text('page two'), findsOneWidget);
+    });
+
+    testWidgets('SWP-03: swipeToFlip false ignores swipes', (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: FlipBook(
+          onClose: () {},
+          swipeToFlip: false,
+          pages: const [
+            FlipBookPage(title: 'One', body: Text('page one')),
+            FlipBookPage(title: 'Two', body: Text('page two')),
+          ],
+        ),
+      ));
+      await tester.fling(find.text('page one'), const Offset(-220, 0), 900);
+      await _finishFlip(tester);
+      expect(find.text('page one'), findsOneWidget);
+    });
+
+    testWidgets('SWP-04: showNavButtons false hides PREV/NEXT; swipe works',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: FlipBook(
+          onClose: () {},
+          showNavButtons: false,
+          pages: const [
+            FlipBookPage(title: 'One', body: Text('page one')),
+            FlipBookPage(title: 'Two', body: Text('page two')),
+          ],
+        ),
+      ));
+      expect(find.text('NEXT'), findsNothing);
+      expect(find.text('PREV'), findsNothing);
+      await tester.fling(find.text('page one'), const Offset(-220, 0), 900);
+      await _finishFlip(tester);
+      expect(find.text('page two'), findsOneWidget);
+    });
+
+    testWidgets(
+        'SWP-05: the hint greets the page, fades, and returns every '
+        'swipeHintDelay while the reader stays', (tester) async {
+      final hint = find.text('Swipe to turn the page');
+      await tester.pumpWidget(MaterialApp(
+        home: FlipBook(
+          onClose: () {},
+          swipeHintDelay: const Duration(seconds: 4),
+          swipeHintDuration: const Duration(seconds: 2),
+          pages: const [
+            FlipBookPage(title: 'One', body: Text('page one')),
+            FlipBookPage(title: 'Two', body: Text('page two')),
+          ],
+        ),
+      ));
+      expect(hint, findsOneWidget, reason: 'shows the moment the page opens');
+
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pump(const Duration(milliseconds: 500)); // fade-out
+      expect(hint, findsNothing, reason: 'fades after swipeHintDuration');
+
+      await tester.pump(const Duration(seconds: 4));
+      expect(hint, findsOneWidget,
+          reason: 'returns after swipeHintDelay on the same page');
+
+      // A page change restarts the cycle with the hint visible.
+      await tester.tap(find.text('NEXT'));
+      await _finishFlip(tester);
+      expect(hint, findsOneWidget, reason: 'greets the new page too');
+      await tester.pump(const Duration(seconds: 3));
+    });
+
+    testWidgets(
+        'SWP-08: swipes in BOTH directions count toward the limit; edge '
+        'flings do not', (tester) async {
+      final hint = find.text('Swipe to turn the page');
+      await tester.pumpWidget(MaterialApp(
+        home: FlipBook(
+          onClose: () {},
+          swipeHintMaxSwipes: 2,
+          swipeHintDelay: const Duration(seconds: 1),
+          pages: const [
+            FlipBookPage(title: 'One', body: Text('page one')),
+            FlipBookPage(title: 'Two', body: Text('page two')),
+            FlipBookPage(title: 'Three', body: Text('page three')),
+          ],
+        ),
+      ));
+      // A backward fling on the FIRST page turns nothing — it must neither
+      // count nor eat the hint.
+      await tester.fling(find.text('page one'), const Offset(220, 0), 900);
+      await tester.pump();
+      expect(find.text('page one'), findsOneWidget);
+      expect(hint, findsOneWidget, reason: 'an edge fling proves nothing');
+
+      // Swipe 1 of 2: forward (leftward).
+      await tester.fling(find.text('page one'), const Offset(-220, 0), 900);
+      await _finishFlip(tester);
+      expect(find.text('page two'), findsOneWidget);
+      expect(hint, findsOneWidget,
+          reason: 'one swipe does not count as learned yet');
+
+      // Swipe 2 of 2: BACKWARD (rightward) — the other direction counts
+      // just the same, and the mixed pair reaches the limit.
+      await tester.fling(find.text('page two'), const Offset(220, 0), 900);
+      await tester.pump();
+      await _finishFlip(tester);
+      expect(find.text('page one'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 500)); // fade-out
+      expect(hint, findsNothing,
+          reason: 'two mixed-direction swipes = gesture learned');
+      await tester.pump(const Duration(seconds: 3)); // past delay + duration
+      expect(hint, findsNothing, reason: 'and the cycle never returns');
+    });
+
     testWidgets('disposing mid-flip does not throw', (tester) async {
-      await tester.pumpWidget(_app(enableSound: false));
+      await tester.pumpWidget(_app());
       await tester.tap(find.text('NEXT'));
       await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 50)));
@@ -140,29 +317,66 @@ void main() {
       expect(find.text('INHALTSVERZEICHNIS'), findsOneWidget);
     });
 
-    testWidgets('enableSound false hides the mute button entirely',
+    testWidgets('no onPageFlip: silent book, no speaker button',
         (tester) async {
-      await tester.pumpWidget(_app(enableSound: false));
+      await tester.pumpWidget(_app());
       expect(find.byIcon(Icons.volume_up), findsNothing);
       expect(find.byIcon(Icons.volume_off), findsNothing);
     });
 
-    testWidgets('sound on by default: mute button shows and toggles',
+    testWidgets('with onPageFlip: mute button shows, toggles, and mutes',
         (tester) async {
-      await tester.pumpWidget(_app());
+      var flips = 0;
+      await tester.pumpWidget(_app(onPageFlip: () async => flips++));
       expect(find.byIcon(Icons.volume_up), findsOneWidget);
+
+      await tester.tap(find.text('NEXT'));
+      await _finishFlip(tester);
+      expect(flips, 1);
 
       await tester.tap(find.byIcon(Icons.volume_up));
       await tester.pump();
       expect(find.byIcon(Icons.volume_off), findsOneWidget);
+      await tester.tap(find.text('PREV'));
+      await tester.pump();
+      await _finishFlip(tester);
+      expect(flips, 1, reason: 'muted flips must not fire onPageFlip');
     });
 
-    testWidgets('onPageFlip replaces the built-in sound', (tester) async {
-      var custom = 0;
-      await tester.pumpWidget(_app(onPageFlip: () async => custom++));
+    testWidgets('enableSound false silences and hides even with onPageFlip',
+        (tester) async {
+      var flips = 0;
+      await tester.pumpWidget(
+          _app(enableSound: false, onPageFlip: () async => flips++));
+      expect(find.byIcon(Icons.volume_up), findsNothing);
       await tester.tap(find.text('NEXT'));
       await _finishFlip(tester);
-      expect(custom, 1);
+      expect(flips, 0);
+    });
+
+    testWidgets('custom icons replace the defaults everywhere', (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: FlipBook(
+          onClose: () {},
+          // Off so the hint's own chevrons stay out of the icon finders.
+          showSwipeHint: false,
+          icons: const FlipBookIcons(
+            next: Icons.arrow_forward,
+            close: Icons.cancel,
+            play: Icons.play_circle,
+          ),
+          onReadAloud: (_) async {},
+          pages: const [
+            FlipBookPage(title: 'One', body: Text('page one')),
+            FlipBookPage(title: 'Two', body: Text('page two')),
+          ],
+        ),
+      ));
+      expect(find.byIcon(Icons.arrow_forward), findsOneWidget);
+      expect(find.byIcon(Icons.cancel), findsOneWidget);
+      expect(find.byIcon(Icons.play_circle), findsOneWidget);
+      expect(find.byIcon(Icons.chevron_right), findsNothing);
+      expect(find.byIcon(Icons.close), findsNothing);
     });
 
     testWidgets('title prints on the page with its tagline', (tester) async {
@@ -223,6 +437,85 @@ void main() {
       await tester.pump();
       await _finishFlip(tester);
       expect(find.text('page two'), findsOneWidget);
+    });
+
+    testWidgets('initialPage opens there; onPageChanged reports every move',
+        (tester) async {
+      final changes = <int>[];
+      await tester.pumpWidget(MaterialApp(
+        home: FlipBook(
+          onClose: () {},
+          initialPage: 99, // out of range — clamps to the last page
+          onPageChanged: changes.add,
+          pages: const [
+            FlipBookPage(title: 'One', body: Text('page one')),
+            FlipBookPage(title: 'Two', body: Text('page two')),
+            FlipBookPage(title: 'Three', body: Text('page three')),
+          ],
+        ),
+      ));
+      expect(find.text('page three'), findsOneWidget);
+      expect(changes, isEmpty, reason: 'opening is not a change');
+
+      await tester.tap(find.text('PREV'));
+      await tester.pump();
+      await _finishFlip(tester);
+      expect(changes, [1]);
+
+      await tester.tap(find.text('INDEX'));
+      await tester.pump();
+      await tester.tap(find.text('Three'));
+      await tester.pump();
+      expect(changes, [1, 2]);
+    });
+
+    testWidgets('showPageNumber shows "n / total" and tracks flips',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: FlipBook(
+          onClose: () {},
+          showPageNumber: true,
+          pages: const [
+            FlipBookPage(title: 'One', body: Text('page one')),
+            FlipBookPage(title: 'Two', body: Text('page two')),
+          ],
+        ),
+      ));
+      expect(find.text('1 / 2'), findsOneWidget);
+
+      await tester.tap(find.text('NEXT'));
+      await _finishFlip(tester);
+      expect(find.text('2 / 2'), findsOneWidget);
+    });
+
+    testWidgets('shrinking the list notifies onPageChanged of the clamp',
+        (tester) async {
+      final changes = <int>[];
+      Widget app(List<FlipBookPage> pages) => MaterialApp(
+            home: FlipBook(
+              onClose: () {},
+              initialPage: 2,
+              onPageChanged: changes.add,
+              pages: pages,
+            ),
+          );
+      const three = [
+        FlipBookPage(title: 'One', body: Text('page one')),
+        FlipBookPage(title: 'Two', body: Text('page two')),
+        FlipBookPage(title: 'Three', body: Text('page three')),
+      ];
+      await tester.pumpWidget(app(three));
+      await tester.pumpWidget(app(three.sublist(0, 1)));
+      await tester.pump();
+      expect(changes, [0], reason: 'the clamp moved the page — report it');
+    });
+
+    test('FlipBookIcons.copyWith replaces only the named fields', () {
+      const base = FlipBookIcons();
+      final custom = base.copyWith(next: Icons.arrow_forward, size: 20);
+      expect(custom.next, Icons.arrow_forward);
+      expect(custom.size, 20);
+      expect(custom.previous, base.previous);
     });
 
     testWidgets('close button fires onClose', (tester) async {

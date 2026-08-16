@@ -2,30 +2,34 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:page_curl_flip/page_curl_flip.dart';
 
-/// Golden gate (QA spec Q3): pixel-exact baselines for every theme preset,
-/// one RTL frame, and one mid-curl frame. Text renders in the deterministic
-/// FlutterTest font, so the images are stable across machines.
+/// Golden gate: pixel-exact baselines for the default look, a customized
+/// look (theme + icons), the mirrored RTL chrome, and two mid-curl frames —
+/// mid-curl is where lighting regressions hide.
 ///
 /// Regenerate deliberately after an intended visual change:
 ///   flutter test --update-goldens test/goldens_test.dart
 void main() {
   Widget book({
     FlipBookTheme theme = const FlipBookTheme(),
+    FlipBookIcons icons = const FlipBookIcons(),
     Color paper = Colors.white,
     TextDirection? direction,
+    bool hint = false,
   }) {
     return MaterialApp(
       home: FlipBook(
         theme: theme,
+        icons: icons,
         pageColor: paper,
         textDirection: direction,
-        enableSound: false,
+        // Off in the chrome baselines; the hint has its own golden.
+        showSwipeHint: hint,
         onReadAloud: (_) async {},
         onClose: () {},
         pages: const [
           FlipBookPage(
             title: 'The look',
-            tagline: 'every colour from one preset',
+            tagline: 'every colour is customizable',
             body: Text('This page is the golden baseline.'),
           ),
           FlipBookPage(title: 'Second', body: Text('page two')),
@@ -42,31 +46,42 @@ void main() {
     await tester.pumpWidget(widget);
   }
 
-  group('Golden gate — presets', () {
-    final presets = <String, (FlipBookTheme, Color)>{
-      'classic': (FlipBookTheme.classic, FlipBookTheme.classicPaper),
-      'old_book': (FlipBookTheme.oldBook, FlipBookTheme.oldBookPaper),
-      'night': (FlipBookTheme.night, FlipBookTheme.nightPaper),
-      'magazine': (FlipBookTheme.magazine, FlipBookTheme.magazinePaper),
-      'kids': (FlipBookTheme.kids, FlipBookTheme.kidsPaper),
-      'newspaper': (FlipBookTheme.newspaper, FlipBookTheme.newspaperPaper),
-    };
+  group('Golden gate', () {
+    testWidgets('GOLD: default skeleton', (tester) async {
+      await pumpAt(tester, book());
+      await expectLater(
+        find.byType(FlipBook),
+        matchesGoldenFile('goldens/default.png'),
+      );
+    });
 
-    for (final entry in presets.entries) {
-      testWidgets('GOLD: ${entry.key} first page', (tester) async {
-        await pumpAt(
-          tester,
-          book(theme: entry.value.$1, paper: entry.value.$2),
-        );
-        await expectLater(
-          find.byType(FlipBook),
-          matchesGoldenFile('goldens/${entry.key}.png'),
-        );
-      });
-    }
-  });
+    testWidgets('GOLD: customized theme and icons', (tester) async {
+      await pumpAt(
+        tester,
+        book(
+          paper: const Color(0xFFFBFAF6),
+          theme: const FlipBookTheme().copyWith(
+            closeIconColor: const Color(0xFF3E5641),
+            navButtonIconColor: const Color(0xFF3E5641),
+            pageTitleStyle: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF2B3A2E),
+            ),
+          ),
+          icons: const FlipBookIcons(
+            next: Icons.arrow_forward_ios,
+            previous: Icons.arrow_back_ios_new,
+            play: Icons.play_circle_outline,
+          ),
+        ),
+      );
+      await expectLater(
+        find.byType(FlipBook),
+        matchesGoldenFile('goldens/customized.png'),
+      );
+    });
 
-  group('Golden gate — frames', () {
     testWidgets('GOLD: RTL chrome mirrors', (tester) async {
       await pumpAt(tester, book(direction: TextDirection.rtl));
       await expectLater(
@@ -75,12 +90,20 @@ void main() {
       );
     });
 
+    testWidgets('GOLD: swipe hint — fading chevron train', (tester) async {
+      // The hint greets the page, so it is visible at open — capture it
+      // before its duration elapses.
+      await pumpAt(tester, book(hint: true));
+      await expectLater(
+        find.byType(FlipBook),
+        matchesGoldenFile('goldens/swipe_hint.png'),
+      );
+    });
+
     testWidgets('GOLD: mid-curl lighting (light paper)', (tester) async {
       await pumpAt(tester, book());
       await tester.tap(find.text('NEXT'));
       await tester.pump();
-      // Freeze the flip at its half-way point — maximum curl, where the
-      // shadow and sheen are strongest and regressions are most visible.
       await tester.pump(FlipSpeed.medium.duration * 0.5);
       await expectLater(
         find.byType(FlipBook),
@@ -88,19 +111,16 @@ void main() {
       );
     });
 
-    testWidgets('GOLD: mid-curl lighting (night paper)', (tester) async {
-      await pumpAt(
-        tester,
-        book(theme: FlipBookTheme.night, paper: FlipBookTheme.nightPaper),
-      );
+    testWidgets('GOLD: mid-curl lighting (dark paper)', (tester) async {
+      // Guards the luminance-adaptive sheen: if the white glare ever
+      // returns to dark paper, this image diff catches it.
+      await pumpAt(tester, book(paper: const Color(0xFF121212)));
       await tester.tap(find.text('NEXT'));
       await tester.pump();
       await tester.pump(FlipSpeed.medium.duration * 0.5);
-      // Guards the luminance-adaptive sheen: if the white glare ever returns
-      // to dark paper, this image diff catches it.
       await expectLater(
         find.byType(FlipBook),
-        matchesGoldenFile('goldens/mid_curl_night.png'),
+        matchesGoldenFile('goldens/mid_curl_dark.png'),
       );
     });
   });

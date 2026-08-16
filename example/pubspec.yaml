@@ -32,6 +32,9 @@ dependencies:
     sdk: flutter
   page_curl_flip:
     path: ../
+  # Example-only: the package ships no audio — this app provides the flip
+  # sound itself, exactly as any consumer would.
+  audioplayers: ^6.0.0
   # Example-only: the simplest possible reader for the onReadAloud button —
   # the device's own text-to-speech engine. The package itself does not
   # depend on this; any TTS service can be plugged into the callback.
@@ -61,6 +64,9 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/sounds/page_flip.m4a
 
   # To add assets to your application, add an assets section, like this:
   # assets:

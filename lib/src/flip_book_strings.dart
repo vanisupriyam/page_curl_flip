@@ -31,6 +31,7 @@ class FlipBookStrings {
     this.readAloud = 'Read this page aloud',
     this.pauseReading = 'Pause reading',
     this.stopReading = 'Stop reading',
+    this.swipeHint = 'Swipe to turn the page',
   });
 
   /// Footer button that opens the table of contents.
@@ -66,6 +67,9 @@ class FlipBookStrings {
   /// Semantic label of the stop button while reading or paused.
   final String stopReading;
 
+  /// Text of the transient swipe hint shown when the book opens.
+  final String swipeHint;
+
   @override
   bool operator ==(Object other) =>
       other is FlipBookStrings &&
@@ -79,9 +83,21 @@ class FlipBookStrings {
       other.unmute == unmute &&
       other.readAloud == readAloud &&
       other.pauseReading == pauseReading &&
-      other.stopReading == stopReading;
+      other.stopReading == stopReading &&
+      other.swipeHint == swipeHint;
 
   @override
-  int get hashCode => Object.hash(index, previous, next, tableOfContents,
-      searchHint, close, mute, unmute, readAloud, pauseReading, stopReading);
+  int get hashCode => Object.hash(
+      index,
+      previous,
+      next,
+      tableOfContents,
+      searchHint,
+      close,
+      mute,
+      unmute,
+      readAloud,
+      pauseReading,
+      stopReading,
+      swipeHint);
 }
