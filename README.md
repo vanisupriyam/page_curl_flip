@@ -3,9 +3,11 @@
 A realistic cylindrical page-curl animation for Flutter. Pages peel away like
 real paper — perspective, diffuse shadow, and a specular sheen included.
 
-Import it, pass your pages, done. Built-in page-flip sound, built-in page
-layout, built-in table of contents. RTL-aware. Works on Android, iOS, web,
-and desktop.
+Import it, pass your pages, done. **Zero dependencies** — the package is a
+skeleton you decorate: every colour, every label, and every icon is
+customizable, and sound is a callback you plug anything into. Built-in page
+layout and searchable table of contents. RTL-aware. Works on Android, iOS,
+web, and desktop.
 
 <!-- TODO before publishing: demo GIF here -->
 
@@ -56,6 +58,36 @@ right-to-left **automatically** under Arabic, Hebrew and other RTL locales —
 buttons mirror and pages flip the opposite way. To force a direction
 regardless of locale, set `textDirection: TextDirection.rtl` (or `.ltr`).
 
+### Swipe
+
+Swiping is on by default: a horizontal fling turns the page with the same
+curl the buttons use, and the gesture mirrors under RTL.
+
+When a page opens, a hint greets the reader right away: the hint text
+between two runs of broad chevrons that fade toward the words — no
+background, no container. It fades out after a moment, returns every
+20 seconds for as long as the reader stays on the page, and retires forever
+once the reader has turned 3 pages by swiping — in any mix of directions —
+at which point the gesture is clearly learned. Everything is a switch or a
+knob:
+
+```dart
+FlipBook(
+  swipeToFlip: true,     // default — set false for buttons-only
+  showNavButtons: true,  // set false for a gesture-only book
+  showSwipeHint: true,   // default — set false to remove the hint
+  swipeHintDelay: Duration(seconds: 20),   // how often it returns
+  swipeHintDuration: Duration(seconds: 3), // how long it stays visible
+  swipeHintMaxSwipes: 3,                   // swipes until "learned"
+  ...
+)
+```
+
+Hint text: `FlipBookStrings.swipeHint` · colour, size, font:
+`FlipBookTheme.swipeHintStyle` · chevron size:
+`FlipBookTheme.swipeHintArrowSize` — the chevron glyphs themselves come from
+`FlipBookIcons.previous` / `next`.
+
 ### Speed
 
 ```dart
@@ -66,14 +98,37 @@ FlipBook(flipSpeed: const FlipSpeed.custom(Duration(seconds: 2))) // your own
 
 ### Sound
 
-A page-flip sound ships with the package and plays on every flip, with a mute
-button in the footer. One switch controls everything:
+The package ships **no audio** and has no audio dependency — you provide the
+flip sound through a callback, with any player or service you like:
 
 ```dart
-FlipBook(enableSound: false, ...)       // silent book, no mute button at all
-FlipBook(showMuteButton: false, ...)    // sound on, speaker button hidden
-FlipBook(onPageFlip: _playMySound, ...) // your own flip sound instead
+FlipBook(onPageFlip: _mySound.play, ...) // your sound — a mute button appears
+FlipBook(enableSound: false, ...)        // master off-switch, button hidden
+FlipBook(showMuteButton: false, ...)     // sound on, speaker button hidden
 ```
+
+No `onPageFlip` → silent book, no speaker button. The example wires
+`audioplayers` with its own 1.15-second sample matched to the flip duration —
+copy that pattern, or bring your own.
+
+### Icons
+
+Every icon is replaceable — the same skeleton idea as the labels:
+
+```dart
+FlipBook(
+  icons: const FlipBookIcons(
+    next: Icons.arrow_forward_ios,
+    previous: Icons.arrow_back_ios_new,
+    play: Icons.play_circle_outline,
+  ),
+  ...
+)
+```
+
+Close, chevrons, speaker pair, play/pause/stop, search, bookmark — all
+overridable. Direction arrows are mirrored automatically under RTL, whatever
+icon you chose.
 
 ### Read aloud
 
@@ -126,41 +181,6 @@ FloatingActionButton(onPressed: controller.nextPage);
 To keep the built-in layout but hide only the speaker, use
 `showMuteButton: false`.
 
-### Preset themes
-
-Six ready-made looks, each with a matching paper colour — pick one and adjust
-anything with `copyWith`:
-
-```dart
-FlipBook(
-  theme: FlipBookTheme.oldBook,          // classic · oldBook · night ·
-  pageColor: FlipBookTheme.oldBookPaper, // magazine · kids · newspaper
-  pages: [...],
-)
-```
-
-| Preset | Look |
-|---|---|
-| `classic` | white paper, neutral ink — the default |
-| `oldBook` | sepia serif, italic taglines |
-| `night` | light ink on near-black, gold bookmark |
-| `magazine` | heavy black titles, one red accent |
-| `kids` | crayon-bright, big rounded titles |
-| `newspaper` | black serif on newsprint, no colour |
-
-### The light on the paper
-
-The curl carries a sheen and a depth shadow. By default the sheen adapts to
-the paper: full on white, only a whisper on dark colours — so dark themes
-never get a glaring light sweep. Both are also directly yours:
-
-```dart
-FlipBook(shine: 0, ...)            // no light at all
-FlipBook(shine: 0.2, shadow: 0.4)  // your own mix, 0–1
-```
-
-(The same knobs exist on `CurlOverlay` and `PageCurlRoute`.)
-
 ### Styling and localization
 
 Every colour and text style comes from `FlipBookTheme`; every built-in label
@@ -211,8 +231,9 @@ control over what bends.
 
 Honest list — these are design decisions or open items, not surprises:
 
-- **Flipping is button-driven.** PREV/NEXT (or a `FlipBookController`) turn
-  pages; there is no swipe/drag gesture yet. Planned for a future version.
+- **Swipes fling, they don't drag.** A horizontal fling plays the full curl
+  animation; the page does not follow your finger mid-drag. Interactive
+  drag-to-curl may come later if there is demand.
 - **`PageCurlRoute` always peels left-to-right**, regardless of locale —
   unlike `FlipBook`, which fully mirrors under RTL.
 - **Pages do not scroll.** The built-in title/tagline layout is a fixed

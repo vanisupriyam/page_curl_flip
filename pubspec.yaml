@@ -1,9 +1,9 @@
 name: page_curl_flip
 description: >-
   A realistic cylindrical page-curl animation for Flutter. Ships a multi-page
-  FlipBook widget with table of contents and built-in flip sound, a CurlOverlay
-  you can drive with any animation, and a PageCurlRoute page transition.
-  RTL-aware.
+  FlipBook widget with table of contents, a CurlOverlay you can drive with
+  any animation, and a PageCurlRoute page transition. Zero dependencies,
+  RTL-aware, every icon and label customizable.
 version: 0.1.0
 repository: https://github.com/vanisupriyam/page_curl_flip
 
@@ -14,9 +14,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  # Sole dependency — plays the built-in page-flip sound. Disable the sound
-  # entirely with FlipBook(enableSound: false).
-  audioplayers: ^6.0.0
 
 dev_dependencies:
   flutter_test:
@@ -25,6 +22,3 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-
-  assets:
-    - assets/sounds/page_flip.mp3

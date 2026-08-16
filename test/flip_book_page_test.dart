@@ -24,6 +24,20 @@ void main() {
       expect(page.speechText(title: false), 'the tagline. the body text');
     });
 
+    test('a title hidden from the page is skipped by default', () {
+      const hidden = FlipBookPage(
+        title: 'Handwritten notes',
+        showTitleOnPage: false,
+        bodyText: 'the poem itself',
+      );
+      // Reads what the page shows — no more "handwritten notes,
+      // handwritten notes" echo.
+      expect(hidden.speechText(), 'the poem itself');
+      // The caller can still force it.
+      expect(
+          hidden.speechText(title: true), 'Handwritten notes. the poem itself');
+    });
+
     test('absent and whitespace parts are skipped silently', () {
       const sparse = FlipBookPage(title: '  ', bodyText: 'only body');
       expect(sparse.speechText(), 'only body');
