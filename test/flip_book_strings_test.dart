@@ -17,8 +17,8 @@ void main() {
 
     test('value equality', () {
       expect(const FlipBookStrings(), const FlipBookStrings());
-      expect(const FlipBookStrings().hashCode,
-          const FlipBookStrings().hashCode);
+      expect(
+          const FlipBookStrings().hashCode, const FlipBookStrings().hashCode);
       expect(const FlipBookStrings(next: 'WEITER'),
           isNot(const FlipBookStrings()));
     });

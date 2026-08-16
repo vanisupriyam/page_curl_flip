@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  package:
+    name: analyze · format · test · traceability
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Dependencies
+        run: flutter pub get
+
+      - name: Format (fails on drift)
+        run: dart format --output=none --set-exit-if-changed lib test example/lib example/test
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Tests
+        run: flutter test
+
+      - name: Spec-ID traceability (QA spec ↔ test suite)
+        run: bash tool/check_spec_ids.sh
+
+      - name: Example dependencies
+        run: flutter pub get
+        working-directory: example
+
+      - name: Example analyze
+        run: flutter analyze
+        working-directory: example
+
+      - name: Example tests
+        run: flutter test
+        working-directory: example
+
+      - name: Publish dry-run
+        run: dart pub publish --dry-run

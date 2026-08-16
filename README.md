@@ -201,6 +201,23 @@ CurlOverlay(
 Or capture the page bitmap yourself and pass it as `pageImage` for exact
 control over what bends.
 
+## Known limitations (v0.1)
+
+Honest list — these are design decisions or open items, not surprises:
+
+- **Flipping is button-driven.** PREV/NEXT (or a `FlipBookController`) turn
+  pages; there is no swipe/drag gesture yet. Planned for a future version.
+- **`PageCurlRoute` always peels left-to-right**, regardless of locale —
+  unlike `FlipBook`, which fully mirrors under RTL.
+- **Pages do not scroll.** The built-in title/tagline layout is a fixed
+  column; if your content can exceed one page height, give the `body` its own
+  `SingleChildScrollView` — the body owns scrolling.
+- **Flips show a snapshot.** Each flip captures the page as a bitmap, so an
+  animating body (GIF, video) appears frozen during the curl and resumes
+  after it.
+- **Mute and reading state are not persisted** across widget rebuilds that
+  recreate the book.
+
 ## Testing note
 
 The built-in sound uses the `audioplayers` plugin — the package's only

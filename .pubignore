@@ -16,3 +16,6 @@ example/.gitignore
 example/.metadata
 example/analysis_options.yaml
 example/README.md
+
+# Golden baselines — CI artefacts, not package content.
+test/goldens/
