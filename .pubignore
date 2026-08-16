@@ -1,0 +1,18 @@
+# Build artifacts and IDE state — never ship.
+.dart_tool/
+**/.dart_tool/
+build/
+**/build/
+*.iml
+.idea/
+
+# The example ships as source only: pub.dev's Example tab reads
+# example/lib/main.dart. Platform scaffolding stays out of the archive.
+example/android/
+example/ios/
+example/web/
+example/test/
+example/.gitignore
+example/.metadata
+example/analysis_options.yaml
+example/README.md
