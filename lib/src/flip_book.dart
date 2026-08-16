@@ -259,8 +259,9 @@ class _FlipBookState extends State<FlipBook>
   late final AnimationController _ctrl;
   late final CurvedAnimation _curved;
 
-  // Created lazily on the first flip that needs the built-in sound.
+  // Primed when the book opens so the first flip's sound is not late.
   AudioPlayer? _player;
+  Future<void>? _playerReady;
 
   int get _pageCount => widget.pages.length;
   bool get _hasIndex =>
@@ -275,6 +276,38 @@ class _FlipBookState extends State<FlipBook>
     );
     _curved = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOutCubic);
     widget.controller?._attach(this);
+    if (widget.enableSound && widget.onPageFlip == null && !_inTestHarness) {
+      unawaited(_primePlayer());
+    }
+  }
+
+  /// Widget tests have no audio plugin, and the player constructor reports
+  /// its missing platform channel asynchronously — uncatchably. Priming is
+  /// a latency optimisation only, so it is skipped under the test binding;
+  /// behaviour is unchanged, tests exercise the same code paths silently.
+  static bool get _inTestHarness =>
+      WidgetsBinding.instance.runtimeType.toString().contains('Test');
+
+  /// Creates the player once and pre-loads the flip sound, so that playback
+  /// at flip time is a rewind + resume instead of a load — this is what
+  /// keeps the sound in sync with the start of the curl.
+  Future<void> _primePlayer() async {
+    if (_player != null) {
+      return _playerReady;
+    }
+    final player = AudioPlayer()..audioCache = AudioCache(prefix: '');
+    _player = player;
+    _playerReady = () async {
+      // Low latency uses Android's sound-effect pool; other platforms
+      // silently keep their default pipeline.
+      await player.setPlayerMode(PlayerMode.lowLatency);
+      // Keep the source loaded after it finishes, so replays are instant.
+      await player.setReleaseMode(ReleaseMode.stop);
+      await player.setSource(
+        AssetSource('packages/page_curl_flip/assets/sounds/page_flip.mp3'),
+      );
+    }();
+    return _playerReady;
   }
 
   @override
@@ -319,12 +352,13 @@ class _FlipBookState extends State<FlipBook>
       return widget.onPageFlip!();
     }
     try {
-      final player =
-          _player ??= AudioPlayer()..audioCache = AudioCache(prefix: '');
+      await _primePlayer();
+      final player = _player!;
+      // Rewind-and-resume on the pre-loaded source: no file I/O at flip
+      // time, so the sound starts with the curl instead of after it.
       await player.stop();
-      await player.play(
-        AssetSource('packages/page_curl_flip/assets/sounds/page_flip.mp3'),
-      );
+      await player.seek(Duration.zero);
+      await player.resume();
     } catch (_) {
       // No audio backend (tests, unsupported platform) — flip silently.
     }

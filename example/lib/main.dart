@@ -511,28 +511,110 @@ class _EnglishBookState extends State<EnglishBook> {
       'That kept so many warm -\n\n'
       '— Emily Dickinson, 1891 (public domain)';
 
-  /// What the read-aloud button speaks, per page.
-  static const _spokenTexts = [
-    'Hope is the thing with feathers, that perches in the soul, and sings '
-        'the tune without the words, and never stops at all. '
-        'By Emily Dickinson.',
-    'An image page. The body of a page can be any widget, like this '
-        'Flutter logo.',
-    'This page brought its own background colour and its own text colour.',
-    'This page is set in a serif face, italic. Fonts come from normal text '
-        'styles, so any font your app bundles works.',
-    'Handwritten notes on ruled paper. The whole page, lines and all, is '
-        'drawn by the body widget.',
-  ];
+  /// Which parts the voice reads — entirely the user's choice: title only,
+  /// tagline and body, everything… flip any of the three switches.
+  static const _readTitle = true;
+  static const _readTagline = true;
+  static const _readBody = true;
 
-  Future<void> _readAloud(int page) =>
-      _reader.read(_spokenTexts[page], 'en-US');
+  Future<void> _readAloud(int page) => _reader.read(
+    _pages[page].speechText(
+      title: _readTitle,
+      tagline: _readTagline,
+      body: _readBody,
+    ),
+    'en-US',
+  );
 
   @override
   void dispose() {
     _reader.dispose();
     super.dispose();
   }
+
+  static const _pages = <FlipBookPage>[
+    FlipBookPage(
+      title: 'A Tiny Book',
+      tagline: 'flip with NEXT · jump from INDEX (bottom-left)',
+      body: Text(_poem, style: TextStyle(fontSize: 15, height: 1.6)),
+      bodyText:
+          'Hope is the thing with feathers, that perches in the soul, '
+          'and sings the tune without the words, and never stops at all. '
+          'By Emily Dickinson.',
+    ),
+    FlipBookPage(
+      title: 'An image page',
+      tagline: 'the body is any widget',
+      body: Center(child: FlutterLogo(size: 160)),
+      bodyText:
+          'The body of a page can be any widget, like this Flutter '
+          'logo.',
+    ),
+    FlipBookPage(
+      title: 'Coloured page',
+      showTitleOnPage: false, // this page draws everything itself
+      bodyText:
+          'This page brought its own background colour and its own '
+          'text colour.',
+      body: ColoredBox(
+        color: Color(0xFF163832),
+        child: Center(
+          child: Padding(
+            padding: EdgeInsets.all(32),
+            child: Text(
+              'This page brought its own background colour '
+              'and its own text colour.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Color(0xFFE8F5E9), fontSize: 18),
+            ),
+          ),
+        ),
+      ),
+    ),
+    FlipBookPage(
+      title: 'Different font',
+      showTitleOnPage: false, // brings its own serif heading
+      bodyText:
+          'This page is set in a serif face, italic. Fonts come from '
+          'normal text styles, so any font your app bundles works.',
+      body: Padding(
+        padding: EdgeInsets.all(32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'A different font',
+              style: TextStyle(
+                fontSize: 28,
+                fontStyle: FontStyle.italic,
+                fontFamily: 'serif',
+                fontFamilyFallback: ['Georgia', 'Times New Roman'],
+              ),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'This page is set in a serif face, italic. Fonts come '
+              'from normal TextStyles — use any font your app bundles.',
+              style: TextStyle(
+                fontSize: 16,
+                fontFamily: 'serif',
+                fontFamilyFallback: ['Georgia', 'Times New Roman'],
+                height: 1.6,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+    FlipBookPage(
+      title: 'Handwritten notes',
+      showTitleOnPage: false, // the ruled paper carries its own title
+      bodyText:
+          'Handwritten notes on ruled paper. The whole page, lines '
+          'and all, is drawn by the body widget.',
+      body: _NotebookPage(),
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -542,73 +624,7 @@ class _EnglishBookState extends State<EnglishBook> {
       onReadAloudStop: _reader.stop,
       onReadAloudPause: _reader.pause,
       onReadAloudResume: _reader.resume,
-      pages: const [
-        FlipBookPage(
-          title: 'A Tiny Book',
-          tagline: 'flip with NEXT · jump from INDEX (bottom-left)',
-          body: Text(_poem, style: TextStyle(fontSize: 15, height: 1.6)),
-        ),
-        FlipBookPage(
-          title: 'An image page',
-          tagline: 'the body is any widget',
-          body: Center(child: FlutterLogo(size: 160)),
-        ),
-        FlipBookPage(
-          title: 'Coloured page',
-          showTitleOnPage: false, // this page draws everything itself
-          body: ColoredBox(
-            color: Color(0xFF163832),
-            child: Center(
-              child: Padding(
-                padding: EdgeInsets.all(32),
-                child: Text(
-                  'This page brought its own background colour '
-                  'and its own text colour.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Color(0xFFE8F5E9), fontSize: 18),
-                ),
-              ),
-            ),
-          ),
-        ),
-        FlipBookPage(
-          title: 'Different font',
-          showTitleOnPage: false, // brings its own serif heading
-          body: Padding(
-            padding: EdgeInsets.all(32),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'A different font',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontStyle: FontStyle.italic,
-                    fontFamily: 'serif',
-                    fontFamilyFallback: ['Georgia', 'Times New Roman'],
-                  ),
-                ),
-                SizedBox(height: 16),
-                Text(
-                  'This page is set in a serif face, italic. Fonts come '
-                  'from normal TextStyles — use any font your app bundles.',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontFamily: 'serif',
-                    fontFamilyFallback: ['Georgia', 'Times New Roman'],
-                    height: 1.6,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        FlipBookPage(
-          title: 'Handwritten notes',
-          showTitleOnPage: false, // the ruled paper carries its own title
-          body: _NotebookPage(),
-        ),
-      ],
+      pages: _pages,
     );
   }
 }
@@ -708,31 +724,46 @@ class ArabicBook extends StatefulWidget {
 class _ArabicBookState extends State<ArabicBook> {
   final _reader = _Reader();
 
-  static const _spokenTexts = [
-    'هذه الصفحة تُقلب في الاتجاه المعاكس، تمامًا كما يُقرأ كتاب عربي حقيقي.',
-    'زر التالي الآن في الجهة اليسرى، والفهرس في الجهة اليمنى.',
-    'لتثبيت صوت عربي، ثبّت خدمات النطق من جوجل، ثم حمّل اللغة العربية من '
-        'إعدادات تحويل النص إلى كلام.',
-    'النهاية.',
-  ];
-
   Future<void> _readAloud(int page) async {
     if (!await _reader.isAvailable('ar')) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            duration: Duration(seconds: 5),
-            content: Text(
-              'لا يوجد صوت عربي على هذا الجهاز — no Arabic voice '
-              'is installed on this device. Add one in the system '
-              'text-to-speech settings, then try again.',
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('لا يوجد صوت عربي — no Arabic voice'),
+            content: const SingleChildScrollView(
+              child: Text(
+                'This device has no Arabic voice installed. To listen in '
+                'Arabic (or any language):\n\n'
+                'Android\n'
+                '1. Install "Speech Recognition & Synthesis" by Google from '
+                'the Play Store.\n'
+                '2. Open Settings → General management (or System) → '
+                'Text-to-speech.\n'
+                '3. Choose "Speech Services by Google" as the engine, tap '
+                'its ⚙ settings → Install voice data.\n'
+                '4. Pick Arabic — or any language — and download it.\n'
+                '5. Come back and tap play.\n\n'
+                'iPhone / iPad\n'
+                '1. Open Settings → Accessibility → Spoken Content → '
+                'Voices.\n'
+                '2. Choose Arabic and download a voice.\n'
+                '3. Come back and tap play.',
+                textDirection: TextDirection.ltr,
+              ),
             ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
           ),
         );
       }
       return;
     }
-    await _reader.read(_spokenTexts[page], 'ar');
+    await _reader.read(_pages[page].speechText(), 'ar');
   }
 
   @override
@@ -761,47 +792,58 @@ class _ArabicBookState extends State<ArabicBook> {
       onReadAloudStop: _reader.stop,
       onReadAloudPause: _reader.pause,
       onReadAloudResume: _reader.resume,
-      pages: const [
-        FlipBookPage(
-          title: 'كتاب صغير',
-          tagline: 'يُقرأ من اليمين إلى اليسار',
-          body: Text(
-            'هذه الصفحة تُقلب في الاتجاه المعاكس، تمامًا كما يُقرأ كتاب عربي '
-            'حقيقي. كل الأزرار والقوائم معكوسة أيضًا.',
-            style: TextStyle(fontSize: 16, height: 1.8),
-          ),
-        ),
-        FlipBookPage(
-          title: 'صفحة ثانية',
-          body: Text(
-            'زر «التالي» الآن في الجهة اليسرى، والفهرس في الجهة اليمنى — '
-            'الاتجاه كله ينعكس تلقائيًا.',
-            style: TextStyle(fontSize: 16, height: 1.8),
-          ),
-        ),
-        FlipBookPage(
-          title: 'تثبيت الصوت',
-          tagline: 'how to hear this book in Arabic',
-          body: Text(
-            'If the play button says no Arabic voice is installed:\n\n'
-            'Android — install "Speech Recognition & Synthesis" by Google '
-            'from the Play Store, then Settings → Text-to-speech → engine '
-            '"Speech Services by Google" → ⚙ → Install voice data → '
-            'Arabic.\n\n'
-            'iPhone — Settings → Accessibility → Spoken Content → Voices → '
-            'Arabic → download.\n\n'
-            'The same steps work for any language.',
-            textDirection: TextDirection.ltr,
-            style: TextStyle(fontSize: 14, height: 1.7),
-          ),
-        ),
-        FlipBookPage(
-          title: 'النهاية',
-          body: Center(child: FlutterLogo(size: 120)),
-        ),
-      ],
+      pages: _pages,
     );
   }
+
+  static const _pages = <FlipBookPage>[
+    FlipBookPage(
+      title: 'كتاب صغير',
+      bodyText:
+          'هذه الصفحة تُقلب في الاتجاه المعاكس، تمامًا كما يُقرأ '
+          'كتاب عربي حقيقي.',
+      tagline: 'يُقرأ من اليمين إلى اليسار',
+      body: Text(
+        'هذه الصفحة تُقلب في الاتجاه المعاكس، تمامًا كما يُقرأ كتاب عربي '
+        'حقيقي. كل الأزرار والقوائم معكوسة أيضًا.',
+        style: TextStyle(fontSize: 16, height: 1.8),
+      ),
+    ),
+    FlipBookPage(
+      title: 'صفحة ثانية',
+      bodyText:
+          'زر التالي الآن في الجهة اليسرى، والفهرس في الجهة '
+          'اليمنى.',
+      body: Text(
+        'زر «التالي» الآن في الجهة اليسرى، والفهرس في الجهة اليمنى — '
+        'الاتجاه كله ينعكس تلقائيًا.',
+        style: TextStyle(fontSize: 16, height: 1.8),
+      ),
+    ),
+    FlipBookPage(
+      title: 'تثبيت الصوت',
+      tagline: 'how to hear this book in Arabic',
+      bodyText:
+          'لتثبيت صوت عربي، ثبّت خدمات النطق من جوجل، ثم حمّل '
+          'اللغة العربية من إعدادات تحويل النص إلى كلام.',
+      body: Text(
+        'If the play button says no Arabic voice is installed:\n\n'
+        'Android — install "Speech Recognition & Synthesis" by Google '
+        'from the Play Store, then Settings → Text-to-speech → engine '
+        '"Speech Services by Google" → ⚙ → Install voice data → '
+        'Arabic.\n\n'
+        'iPhone — Settings → Accessibility → Spoken Content → Voices → '
+        'Arabic → download.\n\n'
+        'The same steps work for any language.',
+        textDirection: TextDirection.ltr,
+        style: TextStyle(fontSize: 14, height: 1.7),
+      ),
+    ),
+    FlipBookPage(
+      title: 'النهاية',
+      body: Center(child: FlutterLogo(size: 120)),
+    ),
+  ];
 }
 
 // ── Reader ────────────────────────────────────────────────────────────────────

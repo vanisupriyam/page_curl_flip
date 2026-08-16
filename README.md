@@ -82,12 +82,18 @@ a centred voice button and manages its states; you provide the reading:
 
 ```dart
 FlipBook(
-  onReadAloud: (page) => tts.speak(texts[page]), // future ends = done reading
-  onReadAloudStop: tts.stop,                     // stop tapped: kill the voice
-  onReadAloudPause: tts.pause,                   // optional — enables pause
-  onReadAloudResume: tts.resume,                 // continue where it paused
+  onReadAloud: (page) => tts.speak(
+    // What gets read is your choice — any combination of the three parts:
+    pages[page].speechText(title: true, tagline: false, body: true),
+  ),
+  onReadAloudStop: tts.stop,     // stop tapped: kill the voice
+  onReadAloudPause: tts.pause,   // optional — enables pause
+  onReadAloudResume: tts.resume, // continue where it paused
 )
 ```
+
+Give each `FlipBookPage` a `bodyText` (the plain-text of its widget body) and
+`speechText()` composes title, tagline, and body — each part switchable.
 
 Idle shows a single ▶ play button. While reading it becomes ⏸ pause + ⏹ stop
 (pause only when you provide the pause/resume pair); paused shows ▶ + ⏹, and
