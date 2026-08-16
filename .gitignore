@@ -1,0 +1,19 @@
+# Build and tool output — never committed.
+.dart_tool/
+build/
+**/build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+
+# Example platform-generated files that churn.
+example/.dart_tool/
+example/android/.gradle/
+example/android/local.properties
+example/ios/Pods/
+example/ios/.symlinks/
+
+# IDE and OS noise.
+.idea/
+*.iml
+.DS_Store

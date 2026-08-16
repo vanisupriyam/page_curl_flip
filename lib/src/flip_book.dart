@@ -33,7 +33,21 @@ import 'flip_speed.dart';
 /// uses for `ExpansionTileController` — because it operates directly on the
 /// widget's private state.
 class FlipBookController {
-  _FlipBookState? _state;
+  // Attach order, oldest first. The last entry is the book being driven;
+  // when it is disposed the previous one automatically takes over (EDG-08).
+  final List<_FlipBookState> _attached = [];
+
+  _FlipBookState? get _state => _attached.isEmpty ? null : _attached.last;
+
+  void _attach(_FlipBookState state) {
+    _attached
+      ..remove(state)
+      ..add(state);
+  }
+
+  void _detach(_FlipBookState state) {
+    _attached.remove(state);
+  }
 
   /// Whether a [FlipBook] is currently attached to this controller.
   bool get isAttached => _state != null;
@@ -64,9 +78,14 @@ class FlipBookController {
   }
 
   /// Opens the table of contents. Needs at least one page with a title.
+  /// Ignored while a flip is in progress (EDG-05) — the TOC opening over a
+  /// half-finished animation would show inconsistent page state.
   void openIndex() {
     final state = _state;
-    if (state == null || !state._hasIndex || state._showIndex) {
+    if (state == null ||
+        !state._hasIndex ||
+        state._showIndex ||
+        state._flipPhase != _FlipPhase.idle) {
       return;
     }
     state._toggleIndex();
@@ -226,10 +245,7 @@ class _FlipBookState extends State<FlipBook>
     with SingleTickerProviderStateMixin {
   int _pageIndex = 0;
   int _nextIndex = 0;
-  bool _busy = false;
-  bool _animating = false;
-  bool _capturingPrev = false;
-  bool _goingForward = true;
+  _FlipPhase _flipPhase = _FlipPhase.idle;
   bool _muted = false;
   bool _showIndex = false;
 
@@ -247,7 +263,8 @@ class _FlipBookState extends State<FlipBook>
   AudioPlayer? _player;
 
   int get _pageCount => widget.pages.length;
-  bool get _hasIndex => widget.pages.any((p) => p.title != null);
+  bool get _hasIndex =>
+      widget.pages.any((p) => p.title?.trim().isNotEmpty ?? false);
 
   @override
   void initState() {
@@ -257,25 +274,35 @@ class _FlipBookState extends State<FlipBook>
       duration: widget.flipSpeed.duration,
     );
     _curved = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOutCubic);
-    widget.controller?._state = this;
+    widget.controller?._attach(this);
   }
 
   @override
   void didUpdateWidget(FlipBook old) {
     super.didUpdateWidget(old);
     if (widget.controller != old.controller) {
-      if (old.controller?._state == this) {
-        old.controller?._state = null;
-      }
-      widget.controller?._state = this;
+      old.controller?._detach(this);
+      widget.controller?._attach(this);
+    }
+    // EDG-03: a rebuilt flipSpeed must take effect, not stay frozen at
+    // whatever initState saw.
+    if (widget.flipSpeed != old.flipSpeed) {
+      _ctrl.duration = widget.flipSpeed.duration;
+    }
+    // EDG-02: a shrunken pages list must never leave the shown index past
+    // the new end.
+    final maxIndex = _pageCount == 0 ? 0 : _pageCount - 1;
+    if (_pageIndex > maxIndex) {
+      _pageIndex = maxIndex;
+    }
+    if (_nextIndex > maxIndex) {
+      _nextIndex = maxIndex;
     }
   }
 
   @override
   void dispose() {
-    if (widget.controller?._state == this) {
-      widget.controller?._state = null;
-    }
+    widget.controller?._detach(this);
     // Reverse order of creation: the curve listens to the controller, so it
     // must detach before the controller goes away.
     _curved.dispose();
@@ -306,12 +333,23 @@ class _FlipBookState extends State<FlipBook>
   void _toggleMute() => setState(() => _muted = !_muted);
   void _toggleIndex() => setState(() => _showIndex = !_showIndex);
 
+  /// EDG-04: an explicit jump is the user's latest intent, so it wins over
+  /// any flip in flight — the animation is aborted, its bitmap released, and
+  /// the pending flip continuation sees a changed phase and gives up.
   void _jumpToPage(int index) {
     _stopReading();
+    if (_flipPhase == _FlipPhase.animatingForward ||
+        _flipPhase == _FlipPhase.animatingBackward) {
+      _ctrl.stop();
+    }
+    final abandoned = _capturedImage;
     setState(() {
+      _flipPhase = _FlipPhase.idle;
+      _capturedImage = null;
       _pageIndex = index;
       _showIndex = false;
     });
+    abandoned?.dispose();
   }
 
   // ── Read-aloud ─────────────────────────────────────────────────────────────
@@ -337,6 +375,10 @@ class _FlipBookState extends State<FlipBook>
   }
 
   void _playReading(int page) {
+    // EDG-06: two taps inside one frame must not start two speech sessions.
+    if (_readPhase != _ReadPhase.idle) {
+      return;
+    }
     final session = ++_readSession;
     setState(() => _readPhase = _ReadPhase.playing);
     unawaited(_awaitReading(session, widget.onReadAloud!(page)));
@@ -371,41 +413,32 @@ class _FlipBookState extends State<FlipBook>
   // the captured snapshot away left→right (progress 0→1).
 
   Future<void> _flipToNext(int target) async {
-    if (_busy || target < 0 || target >= _pageCount) {
+    if (_flipPhase != _FlipPhase.idle || target < 0 || target >= _pageCount) {
       return;
     }
-    _busy = true;
-    _goingForward = true;
     _stopReading();
 
     if (widget.enableSound && !_muted) {
       unawaited(_playFlipSound());
     }
 
-    // Capture the current page as bitmap so it can curl away.
-    final captured = await capturePage(
+    // Capture the current page as bitmap so it can curl away — synchronous,
+    // so there is no gap between deciding to flip and starting to animate.
+    final captured = capturePage(
       _repaintKey,
-      pixelRatio: mounted ? devicePixelRatioOf(context) : 1.0,
+      pixelRatio: captureRatioOf(context),
     );
-
-    if (!mounted) {
-      captured?.dispose();
-      _busy = false;
-      return;
-    }
 
     setState(() {
       _nextIndex = target;
       _capturedImage = captured;
-      _animating = true;
+      _flipPhase = _FlipPhase.animatingForward;
     });
 
     await _animateCurl(forward: true);
 
-    if (!mounted) {
-      _capturedImage?.dispose();
-      _capturedImage = null;
-      _busy = false;
+    if (!mounted || _flipPhase != _FlipPhase.animatingForward) {
+      // Disposed, or a jump aborted this flip and owns the state now.
       return;
     }
 
@@ -419,25 +452,19 @@ class _FlipBookState extends State<FlipBook>
   // (progress 1→0) so strips carry the prev-page texture as they settle flat.
 
   Future<void> _flipToPrev(int target) async {
-    if (_busy || target < 0 || target >= _pageCount) {
+    if (_flipPhase != _FlipPhase.idle || target < 0 || target >= _pageCount) {
       return;
     }
-    _busy = true;
-    _goingForward = false;
     _stopReading();
 
     if (widget.enableSound && !_muted) {
       unawaited(_playFlipSound());
     }
-    if (!mounted) {
-      _busy = false;
-      return;
-    }
 
     // Phase 1: render target page hidden below current page for capture.
     setState(() {
       _nextIndex = target;
-      _capturingPrev = true;
+      _flipPhase = _FlipPhase.capturingPrev;
     });
 
     // Wait one frame so the capture target is laid out and painted.
@@ -445,35 +472,25 @@ class _FlipBookState extends State<FlipBook>
     WidgetsBinding.instance.addPostFrameCallback((_) => frameDone.complete());
     await frameDone.future;
 
-    if (!mounted) {
-      _busy = false;
+    if (!mounted || _flipPhase != _FlipPhase.capturingPrev) {
+      // Disposed, or a jump aborted this flip during the frame wait.
       return;
     }
 
-    final captured = await capturePage(
+    final captured = capturePage(
       _prevCaptureKey,
-      pixelRatio: mounted ? devicePixelRatioOf(context) : 1.0,
+      pixelRatio: captureRatioOf(context),
     );
-
-    if (!mounted) {
-      captured?.dispose();
-      _busy = false;
-      return;
-    }
 
     // Phase 2: animate the captured bitmap descending (progress 1→0).
     setState(() {
-      _capturingPrev = false;
       _capturedImage = captured;
-      _animating = true;
+      _flipPhase = _FlipPhase.animatingBackward;
     });
 
     await _animateCurl(forward: false);
 
-    if (!mounted) {
-      _capturedImage?.dispose();
-      _capturedImage = null;
-      _busy = false;
+    if (!mounted || _flipPhase != _FlipPhase.animatingBackward) {
       return;
     }
 
@@ -490,9 +507,8 @@ class _FlipBookState extends State<FlipBook>
     final toDispose = _capturedImage;
     setState(() {
       _pageIndex = _nextIndex;
-      _animating = false;
+      _flipPhase = _FlipPhase.idle;
       _capturedImage = null;
-      _busy = false;
     });
     toDispose?.dispose();
   }
@@ -510,12 +526,24 @@ class _FlipBookState extends State<FlipBook>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // maxLines bounds the header so a long title at large text scale
+          // can never push the body into a RenderFlex overflow (LAY-06).
           if (printedTitle != null)
-            Text(printedTitle, style: widget.theme.pageTitleStyle),
+            Text(
+              printedTitle,
+              style: widget.theme.pageTitleStyle,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
           if (printedTitle != null && page.tagline != null)
             const SizedBox(height: 6),
           if (page.tagline != null)
-            Text(page.tagline!, style: widget.theme.pageTaglineStyle),
+            Text(
+              page.tagline!,
+              style: widget.theme.pageTaglineStyle,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
           if (page.body != null) ...[
             const SizedBox(height: 20),
             Expanded(child: page.body!),
@@ -551,10 +579,13 @@ class _FlipBookState extends State<FlipBook>
   }
 
   Widget _buildPage(int index) {
+    // EDG-01: an empty pages list renders blank paper, never a RangeError —
+    // apps that build pages from async data show the book before the fetch.
+    final page = _pageCount == 0
+        ? const FlipBookPage()
+        : widget.pages[index.clamp(0, _pageCount - 1)];
     return _FlipBookScaffold(
-      page: index,
-      total: _pageCount,
-      content: _pageContent(widget.pages[index]),
+      content: _pageContent(page),
       theme: widget.theme,
       strings: widget.strings,
       headerAction: widget.headerAction,
@@ -591,7 +622,7 @@ class _FlipBookState extends State<FlipBook>
             // painted (toImage works) but invisible to the user.
             // ColoredBox gives it a solid background so it can be captured
             // correctly (page content on pageColor, no transparency).
-            if (_capturingPrev)
+            if (_flipPhase == _FlipPhase.capturingPrev)
               RepaintBoundary(
                 key: _prevCaptureKey,
                 child: ColoredBox(
@@ -610,7 +641,7 @@ class _FlipBookState extends State<FlipBook>
                 onSelect: _jumpToPage,
                 onClose: _toggleIndex,
               )
-            else if (_animating && _goingForward)
+            else if (_flipPhase == _FlipPhase.animatingForward)
               // NEXT: destination page shows through as the current page peels
               // away. IgnorePointer keeps layout identical (buttons present)
               // so there is no footer shift when animation ends.
@@ -623,7 +654,7 @@ class _FlipBookState extends State<FlipBook>
               // _capturingPrev. IgnorePointer blocks touches during animation
               // without changing the widget tree, so no layout shift occurs.
               IgnorePointer(
-                ignoring: _animating,
+                ignoring: _flipPhase == _FlipPhase.animatingBackward,
                 child: RepaintBoundary(
                   key: _repaintKey,
                   child: ColoredBox(
@@ -633,7 +664,9 @@ class _FlipBookState extends State<FlipBook>
                 ),
               ),
 
-            if (_animating && !_showIndex)
+            if ((_flipPhase == _FlipPhase.animatingForward ||
+                    _flipPhase == _FlipPhase.animatingBackward) &&
+                !_showIndex)
               AnimatedBuilder(
                 animation: _curved,
                 builder: (_, __) => CurlOverlay(
@@ -659,12 +692,28 @@ class _FlipBookState extends State<FlipBook>
 /// Lifecycle of the centre read-aloud control.
 enum _ReadPhase { idle, playing, paused }
 
+/// Lifecycle of a page flip. One value instead of four booleans: illegal
+/// combinations (capturing while animating, busy while idle) are
+/// unrepresentable, and every guard reads a single field.
+enum _FlipPhase {
+  /// No flip in progress.
+  idle,
+
+  /// PREV phase 1: the target page renders hidden for one frame so it can
+  /// be captured.
+  capturingPrev,
+
+  /// The captured page is peeling away (NEXT).
+  animatingForward,
+
+  /// The captured page is descending back (PREV).
+  animatingBackward,
+}
+
 // ── Scaffold ──────────────────────────────────────────────────────────────────
 
 class _FlipBookScaffold extends StatelessWidget {
   const _FlipBookScaffold({
-    required this.page,
-    required this.total,
     required this.content,
     required this.theme,
     required this.strings,
@@ -684,8 +733,6 @@ class _FlipBookScaffold extends StatelessWidget {
     this.onToggleIndex,
   });
 
-  final int page;
-  final int total;
   final Widget content;
   final FlipBookTheme theme;
   final FlipBookStrings strings;
@@ -826,7 +873,9 @@ class _FlipBookHeader extends StatelessWidget {
         children: [
           IconButton(
             onPressed: onClose,
-            icon: const Icon(Icons.close, size: 20),
+            // The explicit semanticLabel is what screen readers announce;
+            // the tooltip alone only fills the tooltip attribute (ACC-01).
+            icon: Icon(Icons.close, size: 20, semanticLabel: closeLabel),
             color: closeIconColor,
             tooltip: closeLabel,
           ),
@@ -893,6 +942,21 @@ class _FooterButton extends StatelessWidget {
   final IconData? trailingIcon;
   final Color? iconColor;
 
+  /// Chevron glyphs must point with the reading direction: under RTL the
+  /// button positions already mirror via the Row, so the glyphs swap too.
+  static IconData _mirrored(IconData icon, BuildContext context) {
+    if (Directionality.of(context) != TextDirection.rtl) {
+      return icon;
+    }
+    if (icon == Icons.chevron_left) {
+      return Icons.chevron_right;
+    }
+    if (icon == Icons.chevron_right) {
+      return Icons.chevron_left;
+    }
+    return icon;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Semantics(
@@ -908,13 +972,15 @@ class _FooterButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (leadingIcon != null) ...[
-                Icon(leadingIcon, size: 16, color: iconColor),
+                Icon(_mirrored(leadingIcon!, context),
+                    size: 16, color: iconColor),
                 const SizedBox(width: 4),
               ],
               Text(label, style: style),
               if (trailingIcon != null) ...[
                 const SizedBox(width: 4),
-                Icon(trailingIcon, size: 16, color: iconColor),
+                Icon(_mirrored(trailingIcon!, context),
+                    size: 16, color: iconColor),
               ],
             ],
           ),

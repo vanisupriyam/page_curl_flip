@@ -13,6 +13,10 @@ import 'curl_overlay.dart';
 /// `FlipBook` flips between its pages. Without one, the curl is driven
 /// directly by the route animation over plain paper.
 ///
+/// Known limitation (v0.1): the route's curl always peels left-to-right,
+/// regardless of the ambient [Directionality] — unlike `FlipBook`, which
+/// mirrors its flips under RTL locales.
+///
 /// ```dart
 /// Navigator.of(context).push(
 ///   PageCurlRoute(
@@ -159,14 +163,7 @@ class _PageCurlTransitionState extends State<_PageCurlTransition>
     if (!mounted) {
       return;
     }
-    final img = await capturePage(
-      _coverKey,
-      pixelRatio: devicePixelRatioOf(context),
-    );
-    if (!mounted) {
-      img?.dispose();
-      return;
-    }
+    final img = capturePage(_coverKey, pixelRatio: captureRatioOf(context));
     // Route already popping — abort; cover stays visible until the route exits.
     if (widget.animation.status == AnimationStatus.reverse) {
       img?.dispose();

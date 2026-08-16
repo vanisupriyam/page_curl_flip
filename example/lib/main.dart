@@ -854,6 +854,14 @@ class _Reader {
   /// Continues from the word where [pause] cut the voice off; completes
   /// when the remaining text has been read.
   Future<void> resume() async {
+    if (_position == 0) {
+      // Some engines emit no word-progress events; resume then has no
+      // offset to continue from and restarts the page.
+      debugPrint(
+        '[page_curl_flip example] this TTS engine reported no '
+        'progress — resuming from the beginning of the page',
+      );
+    }
     _base = _position;
     await _tts.setLanguage(_language);
     await _tts.speak(_text.substring(_position.clamp(0, _text.length)));

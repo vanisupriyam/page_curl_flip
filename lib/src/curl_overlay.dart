@@ -57,7 +57,8 @@ class CurlOverlay extends StatefulWidget {
         assert(shadow == null || (shadow >= 0 && shadow <= 1),
             'shadow must be between 0 and 1');
 
-  /// Animation progress in [0, 1].
+  /// Animation progress. Values are clamped into [0, 1], so overshooting
+  /// curves (springs) are safe to feed directly.
   final double progress;
 
   /// Pre-captured page bitmap. Takes priority over [child] auto-capture.
@@ -129,19 +130,12 @@ class _CurlOverlayState extends State<CurlOverlay> {
     }
   }
 
-  Future<void> _captureChild() async {
+  void _captureChild() {
     if (!mounted) {
       return;
     }
-    final img = await capturePage(
-      _captureKey,
-      pixelRatio: devicePixelRatioOf(context),
-    );
+    final img = capturePage(_captureKey, pixelRatio: captureRatioOf(context));
     if (img == null) {
-      return;
-    }
-    if (!mounted) {
-      img.dispose();
       return;
     }
     final prev = _autoCapture;
@@ -211,15 +205,20 @@ class _CurlOverlayState extends State<CurlOverlay> {
 
   // ── Cylinder geometry ───────────────────────────────────────────────────────
 
+  /// EDG-07: callers animate [CurlOverlay.progress] with arbitrary curves;
+  /// out-of-range values (spring overshoot) must not produce a negative
+  /// cylinder radius, so all geometry reads this clamped value.
+  double get _progress => widget.progress.clamp(0.0, 1.0);
+
   double get _arcAngle {
-    final raw = widget.progress < 0.5
-        ? widget.progress * _fullTurn
-        : (1 - (widget.progress - 0.5) * 2) * math.pi;
+    final raw = _progress < 0.5
+        ? _progress * _fullTurn
+        : (1 - (_progress - 0.5) * 2) * math.pi;
     return raw < 1e-9 ? 1e-9 : raw;
   }
 
   double get _flipOffset =>
-      widget.progress > 0.5 ? -(widget.progress - 0.5) * 2 * 180 : 0.0;
+      _progress > 0.5 ? -(_progress - 0.5) * 2 * 180 : 0.0;
 
   /// Specular strength: the caller's [CurlOverlay.shine] when given,
   /// otherwise adapted to the paper. White paper keeps the full sheen; dark

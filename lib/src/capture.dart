@@ -1,17 +1,21 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
-/// Captures the render tree under [key] as a bitmap at the device's real
-/// pixel ratio, or `null` when the boundary is absent or capture fails.
+/// Captures the render tree under [key] as a bitmap, synchronously, or
+/// `null` when the boundary is absent, unpainted, or capture fails.
+///
+/// Uses [RenderRepaintBoundary.toImageSync]: the image stays GPU-resident
+/// (no CPU round-trip) and the call returns in the same frame, which removes
+/// the await-gaps the old async capture had to guard against.
 ///
 /// Failures are reported through [FlutterError.reportError] so they surface
 /// in debug consoles and crash reporters without ever throwing into the
 /// animation pipeline — a failed capture degrades to plain-paper strips,
 /// which is the intended fallback.
-Future<ui.Image?> capturePage(GlobalKey key,
-    {required double pixelRatio}) async {
+ui.Image? capturePage(GlobalKey key, {required double pixelRatio}) {
   final context = key.currentContext;
   if (context == null) {
     return null;
@@ -20,8 +24,16 @@ Future<ui.Image?> capturePage(GlobalKey key,
   if (renderObject is! RenderRepaintBoundary) {
     return null;
   }
+  var needsPaint = false;
+  assert(() {
+    needsPaint = renderObject.debugNeedsPaint;
+    return true;
+  }());
+  if (needsPaint) {
+    return null;
+  }
   try {
-    return await renderObject.toImage(pixelRatio: pixelRatio);
+    return renderObject.toImageSync(pixelRatio: pixelRatio);
   } catch (error, stackTrace) {
     FlutterError.reportError(FlutterErrorDetails(
       exception: error,
@@ -33,7 +45,9 @@ Future<ui.Image?> capturePage(GlobalKey key,
   }
 }
 
-/// The device pixel ratio for [context], falling back to 1.0 when no view is
-/// attached (never happens in a real app; keeps tests and headless use safe).
-double devicePixelRatioOf(BuildContext context) =>
-    View.maybeOf(context)?.devicePixelRatio ?? 1.0;
+/// The pixel ratio to capture at for [context]: the device's own ratio,
+/// **capped at 2.0** — a page in mid-curl cannot show 3× detail, and the
+/// uncapped bitmap on a flagship costs ~12–16 MB per flip. Falls back to 1.0
+/// when no view is attached (tests, headless use).
+double captureRatioOf(BuildContext context) =>
+    math.min(View.maybeOf(context)?.devicePixelRatio ?? 1.0, 2.0);

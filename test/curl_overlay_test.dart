@@ -27,6 +27,16 @@ void main() {
       }
     });
 
+    testWidgets('EDG-07: out-of-range progress is clamped, not crashed',
+        (tester) async {
+      for (final progress in [-0.5, 1.5]) {
+        await tester.pumpWidget(
+          MaterialApp(home: CurlOverlay(progress: progress)),
+        );
+        expect(tester.takeException(), isNull);
+      }
+    });
+
     test('out-of-range shine and shadow are rejected', () {
       expect(() => CurlOverlay(progress: 0, shine: 1.5), throwsAssertionError);
       expect(
