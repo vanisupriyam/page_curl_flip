@@ -24,6 +24,7 @@ class FlipBookPage {
     this.title,
     this.tagline,
     this.body,
+    this.bodyText,
     this.showTitleOnPage = true,
   });
 
@@ -38,8 +39,32 @@ class FlipBookPage {
   /// The page body — any widget; `null` renders blank paper under the title.
   final Widget? body;
 
+  /// Plain-text version of [body] for the read-aloud voice. The body is a
+  /// widget and cannot be spoken; provide its text here to make it readable.
+  final String? bodyText;
+
   /// Whether [title] is printed on the page itself. Set `false` when the
   /// [body] brings its own heading, so the title only names the page in the
   /// table of contents.
   final bool showTitleOnPage;
+
+  /// Composes this page's speech text from exactly the parts the caller
+  /// wants — any combination: title only, tagline and body, everything.
+  /// Absent or disabled parts are skipped; parts are joined with periods.
+  ///
+  /// ```dart
+  /// onReadAloud: (i) => tts.speak(
+  ///   pages[i].speechText(title: true, tagline: false, body: true),
+  /// )
+  /// ```
+  String speechText(
+      {bool title = true, bool tagline = true, bool body = true}) {
+    final parts = <String>[
+      if (title && (this.title?.trim().isNotEmpty ?? false)) this.title!.trim(),
+      if (tagline && (this.tagline?.trim().isNotEmpty ?? false))
+        this.tagline!.trim(),
+      if (body && (bodyText?.trim().isNotEmpty ?? false)) bodyText!.trim(),
+    ];
+    return parts.join('. ');
+  }
 }
