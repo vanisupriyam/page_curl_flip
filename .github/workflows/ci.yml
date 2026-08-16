@@ -8,9 +8,12 @@ on:
 jobs:
   package:
     name: analyze · format · test · traceability
-    runs-on: ubuntu-latest
+    # macOS, not Linux: the golden baselines are rendered on macOS and icon
+    # glyphs rasterize slightly differently across OSes. Free for public
+    # repos, and it matches the development machine.
+    runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: subosito/flutter-action@v2
         with:
