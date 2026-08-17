@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.1
+
+- Replaced the deprecated `Matrix4.translate` call in the curl transform with
+  `Matrix4.translationValues` + `multiplied`. Identical math, no behaviour
+  change, and no minimum-SDK bump — the replacement API exists in every
+  supported Flutter version.
+- Shortened the `pubspec.yaml` description to pub.dev's 60–180 character
+  guideline.
+
 ## 0.1.0
 
 Initial release.
