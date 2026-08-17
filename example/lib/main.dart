@@ -1,4 +1,5 @@
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:page_curl_flip/page_curl_flip.dart';
@@ -145,16 +146,6 @@ class _LtrBookState extends State<LtrBook> {
       body: _NotebookPage(heading: 'page_curl_flip', lines: _aboutEn),
     ),
     FlipBookPage(
-      title: 'For kids',
-      showTitleOnPage: false,
-      bodyText: _aboutEn,
-      body: _KidsPage(
-        badge: 'a package for you!',
-        heading: 'flip!',
-        poem: _aboutEn,
-      ),
-    ),
-    FlipBookPage(
       title: 'Magazine cover',
       showTitleOnPage: false,
       bodyText: _aboutEn,
@@ -163,6 +154,16 @@ class _LtrBookState extends State<LtrBook> {
         issueLine: 'FLUTTER WEEKLY · v0.1 · pub.dev',
         headline: 'PAPER',
         credit: '"pages that feel real" — page_curl_flip',
+        poem: _aboutEn,
+      ),
+    ),
+    FlipBookPage(
+      title: 'For kids',
+      showTitleOnPage: false,
+      bodyText: _aboutEn,
+      body: _KidsPage(
+        badge: 'a package for you!',
+        heading: 'flip!',
         poem: _aboutEn,
       ),
     ),
@@ -189,6 +190,11 @@ class _LtrBookState extends State<LtrBook> {
       // line greets each page and returns every 20 s while the reader
       // stays. Turn either off with swipeToFlip / showSwipeHint, or tune
       // swipeHintDelay.
+      // The package persists nothing between opens — the app remembers
+      // that the gesture was learned and stops the greeting on the next
+      // open. A real app would write this flag to storage.
+      showSwipeHint: !_SwipeMemory.learned,
+      onSwipeHintRetired: () => _SwipeMemory.learned = true,
       // The flip sound comes from THIS app; the package ships no audio.
       onPageFlip: _sound.play,
       // The voice reads what each page shows, via the device's TTS engine.
@@ -235,7 +241,9 @@ class _RtlBookState extends State<RtlBook> {
 
   /// The speech language of each page — the kids page is Hebrew, so both
   /// RTL scripts appear in one book.
-  static const _pageLanguages = ['ar', 'ar', 'he', 'ar', 'ar'];
+  // Order matches _pages: plain, handwritten, magazine, kids (Hebrew),
+  // voice setup.
+  static const _pageLanguages = ['ar', 'ar', 'ar', 'he', 'ar'];
 
   static const _pages = <FlipBookPage>[
     FlipBookPage(
@@ -254,18 +262,6 @@ class _RtlBookState extends State<RtlBook> {
         textDirection: TextDirection.rtl,
       ),
     ),
-    // Hebrew — a second RTL script, completely different from Arabic.
-    FlipBookPage(
-      title: 'לילדים',
-      showTitleOnPage: false,
-      bodyText: _aboutHe,
-      body: _KidsPage(
-        badge: 'חבילה בשבילך!',
-        heading: 'flip!',
-        poem: _aboutHe,
-        direction: TextDirection.rtl,
-      ),
-    ),
     FlipBookPage(
       title: 'غلاف مجلة',
       showTitleOnPage: false,
@@ -276,6 +272,18 @@ class _RtlBookState extends State<RtlBook> {
         headline: 'الورق',
         credit: '«صفحات كأنها حقيقية» — page_curl_flip',
         poem: _aboutAr,
+        direction: TextDirection.rtl,
+      ),
+    ),
+    // Hebrew — a second RTL script, completely different from Arabic.
+    FlipBookPage(
+      title: 'לילדים',
+      showTitleOnPage: false,
+      bodyText: _aboutHe,
+      body: _KidsPage(
+        badge: 'חבילה בשבילך!',
+        heading: 'flip!',
+        poem: _aboutHe,
         direction: TextDirection.rtl,
       ),
     ),
@@ -354,6 +362,10 @@ class _RtlBookState extends State<RtlBook> {
       icons: _bookIcons,
       pageColor: const Color(0xFFFBFAF6),
       showPageNumber: true,
+      // The learned-gesture memory is app-wide: three swipes in either
+      // book retire the hint in both.
+      showSwipeHint: !_SwipeMemory.learned,
+      onSwipeHintRetired: () => _SwipeMemory.learned = true,
       onPageFlip: _sound.play,
       onReadAloud: _readAloud,
       onReadAloudStop: _reader.stop,
@@ -433,12 +445,32 @@ class _KidsPage extends StatelessWidget {
   final String poem;
   final TextDirection direction;
 
+  /// Explicit per-platform pick, no bundled font: Chalkboard SE is Apple's
+  /// built-in kid-print font; Android has no named equivalent, so its
+  /// 'casual' alias picks the vendor's kid-print font (Coming Soon on
+  /// stock Android). Each platform shows its own native kids writing.
+  static String get _kidsFont =>
+      defaultTargetPlatform == TargetPlatform.iOS ? 'Chalkboard SE' : 'casual';
+
+  /// iOS's Chalkboard SE is much bolder than Android's kid print — ask for
+  /// the Light face (w300) there to bring the stroke weight closer.
+  static FontWeight get _kidsHeadingWeight =>
+      defaultTargetPlatform == TargetPlatform.iOS
+      ? FontWeight.w200
+      : FontWeight.w800;
+
+  static FontWeight get _kidsBodyWeight =>
+      defaultTargetPlatform == TargetPlatform.iOS
+      ? FontWeight.w200
+      : FontWeight.w400;
+
   @override
   Widget build(BuildContext context) {
     return Directionality(
       textDirection: direction,
       child: ColoredBox(
-        color: const Color(0xFF101014),
+        // Very pale lemon yellow — a light, friendly page (was near-black).
+        color: const Color(0xFFFFFDE7),
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(28, 56, 28, 72),
@@ -466,22 +498,24 @@ class _KidsPage extends StatelessWidget {
                 const SizedBox(height: 14),
                 Text(
                   heading,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 40,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF4FC3F7),
-                    fontFamilyFallback: ['Arial Rounded MT Bold', 'casual'],
+                    fontWeight: _kidsHeadingWeight,
+                    // Deeper blue for contrast on the pale page.
+                    color: const Color(0xFF0288D1),
+                    fontFamily: _kidsFont,
                   ),
                 ),
                 const SizedBox(height: 10),
                 Expanded(
                   child: Text(
                     poem,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       height: 1.7,
-                      color: Color(0xFFECECEC),
-                      fontFamilyFallback: ['Arial Rounded MT Bold', 'casual'],
+                      color: const Color(0xFF424242),
+                      fontFamily: _kidsFont,
+                      fontWeight: _kidsBodyWeight,
                     ),
                   ),
                 ),
@@ -521,7 +555,8 @@ class _MagazineCover extends StatelessWidget {
     return Directionality(
       textDirection: direction,
       child: ColoredBox(
-        color: Colors.white,
+        // Black cover — the light type and the bright hero plate pop on it.
+        color: Colors.black,
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(22, 48, 22, 64),
@@ -538,7 +573,7 @@ class _MagazineCover extends StatelessWidget {
                         fontWeight: FontWeight.w900,
                         letterSpacing: -1,
                         height: 0.9,
-                        color: Colors.black,
+                        color: Colors.white,
                       ),
                     ),
                     const Spacer(),
@@ -548,7 +583,7 @@ class _MagazineCover extends StatelessWidget {
                         fontSize: 9,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 1.2,
-                        color: Color(0xFF666666),
+                        color: Color(0xFFAAAAAA),
                       ),
                     ),
                   ],
@@ -581,7 +616,7 @@ class _MagazineCover extends StatelessWidget {
                     fontWeight: FontWeight.w900,
                     letterSpacing: -1,
                     height: 1.0,
-                    color: Colors.black,
+                    color: Colors.white,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -607,7 +642,7 @@ class _MagazineCover extends StatelessWidget {
                           style: const TextStyle(
                             fontSize: 8,
                             height: 1.5,
-                            color: Color(0xFF444444),
+                            color: Color(0xFFBBBBBB),
                           ),
                         ),
                       ),
@@ -620,7 +655,7 @@ class _MagazineCover extends StatelessWidget {
                           style: const TextStyle(
                             fontSize: 8,
                             height: 1.5,
-                            color: Color(0xFF444444),
+                            color: Color(0xFFBBBBBB),
                           ),
                         ),
                       ),
@@ -639,7 +674,7 @@ class _MagazineCover extends StatelessWidget {
                         fontSize: 8,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 1,
-                        color: Color(0xFF888888),
+                        color: Color(0xFF999999),
                       ),
                     ),
                   ],
@@ -681,17 +716,24 @@ class _Barcode extends StatelessWidget {
       2.0,
       2.0,
     ];
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (final w in widths)
-          Container(
-            width: w,
-            height: 22,
-            margin: const EdgeInsets.only(right: 1),
-            color: Colors.black,
-          ),
-      ],
+    // The stripes sit on a white plate, like a real barcode on a dark cover.
+    return ColoredBox(
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(3),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final w in widths)
+              Container(
+                width: w,
+                height: 22,
+                margin: const EdgeInsets.only(right: 1),
+                color: Colors.black,
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -711,15 +753,31 @@ class _NotebookPage extends StatelessWidget {
 
   static const _lineHeight = 32.0;
 
+  /// Explicit per-platform pick, no bundled font: Marker Felt is Apple's
+  /// built-in marker handwriting; Android has no named equivalent, so its
+  /// 'casual' alias picks the vendor's handwriting-print font (Coming Soon
+  /// on stock Android). Arabic text falls through to the system Arabic
+  /// font on both platforms — neither pick carries Arabic glyphs.
+  static String get _notesFont =>
+      defaultTargetPlatform == TargetPlatform.iOS ? 'Marker Felt' : 'casual';
+
+  /// iOS's Marker Felt is heavier than Android's — ask for its Thin face
+  /// (w300) there to bring the stroke weight closer.
+  static FontWeight get _notesWeight =>
+      defaultTargetPlatform == TargetPlatform.iOS
+      ? FontWeight.w200
+      : FontWeight.w400;
+
   @override
   Widget build(BuildContext context) {
-    const handwriting = TextStyle(
+    final handwriting = TextStyle(
       fontSize: 16,
       height: _lineHeight / 16,
       leadingDistribution: TextLeadingDistribution.even,
-      color: Color(0xFF2B3A67),
+      color: const Color(0xFF2B3A67),
       fontStyle: FontStyle.italic,
-      fontFamilyFallback: ['Marker Felt', 'Bradley Hand', 'casual', 'cursive'],
+      fontFamily: _notesFont,
+      fontWeight: _notesWeight,
     );
     final isRtl = textDirection == TextDirection.rtl;
     return CustomPaint(
@@ -742,7 +800,11 @@ class _NotebookPage extends StatelessWidget {
               style: handwriting.copyWith(
                 fontSize: 20,
                 height: _lineHeight / 20,
-                fontWeight: FontWeight.w600,
+                // Heading stays a step heavier than the body on each
+                // platform — thin overall on iOS (Marker Felt runs heavy).
+                fontWeight: defaultTargetPlatform == TargetPlatform.iOS
+                    ? FontWeight.w200
+                    : FontWeight.w600,
               ),
             ),
             Expanded(
@@ -796,12 +858,26 @@ class _RuledPaperPainter extends CustomPainter {
       old.lineHeight != lineHeight || old.marginRight != marginRight;
 }
 
+// ── Swipe memory ──────────────────────────────────────────────────────────────
+
+/// The package keeps no state between opens; remembering that the reader
+/// has learned the swipe gesture is the app's job. This example remembers
+/// for the app's lifetime — a real app would persist the flag to storage
+/// and restore it at startup.
+class _SwipeMemory {
+  static bool learned = false;
+}
+
 // ── Flip sound ────────────────────────────────────────────────────────────────
 
 /// The flip sound is this app's, not the package's. The 1.15-second sample
 /// matches the flip duration, and pre-loading keeps it in sync with the
 /// curl.
-class _FlipSound {
+class _FlipSound with WidgetsBindingObserver {
+  _FlipSound() {
+    WidgetsBinding.instance.addObserver(this);
+  }
+
   final _player = AudioPlayer();
   Future<void>? _ready;
 
@@ -810,9 +886,29 @@ class _FlipSound {
     await _player.setSource(AssetSource('sounds/page_flip.m4a'));
   }();
 
+  /// iOS interrupts the audio session when the app leaves the foreground
+  /// and resumes interrupted players when it returns — which replayed the
+  /// flip sound on background AND on relaunch. Stopping the player the
+  /// moment the app stops being active leaves nothing to resume.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) {
+      _player.stop();
+    }
+  }
+
   /// Plays from the start; safe to call on every flip.
   Future<void> play() async {
     await _prime();
+    // Respect the iPhone ring/silent switch: audioplayers defaults the iOS
+    // audio session to the `playback` category, which by Apple's rules
+    // ignores the switch. `respectSilence` swaps it for `ambient` — a UI
+    // effect sound should obey silent mode. Re-asserted on every flip
+    // because the session is one shared object and read-aloud switches it
+    // to `playback` for itself (a deliberate listen must sound regardless).
+    await AudioPlayer.global.setAudioContext(
+      AudioContextConfig(respectSilence: true).build(),
+    );
     await _player.stop();
     try {
       await _player.seek(Duration.zero);
@@ -823,6 +919,7 @@ class _FlipSound {
   }
 
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _player.dispose();
   }
 }
@@ -832,7 +929,11 @@ class _FlipSound {
 /// A small wrapper around the device's text-to-speech engine, shaped for
 /// FlipBook's callbacks: read() completes when speech ends, pause()/resume()
 /// continue from the interrupted word, stop() halts immediately.
-class _Reader {
+class _Reader with WidgetsBindingObserver {
+  _Reader() {
+    WidgetsBinding.instance.addObserver(this);
+  }
+
   final _tts = FlutterTts();
   bool _configured = false;
   String _text = '';
@@ -855,8 +956,24 @@ class _Reader {
   Future<bool> isAvailable(String language) async =>
       await _tts.isLanguageAvailable(language) == true;
 
+  /// Read-aloud is a deliberate listen — like any audio player it must
+  /// sound even with the iPhone silent switch on, so it asserts the
+  /// `playback` category before every speak. (The flip sound asserts
+  /// `ambient` before every play for the opposite reason: the iOS audio
+  /// session is one shared object, and whoever spoke last set its mode.)
+  Future<void> _assertAudioCategory() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) {
+      return;
+    }
+    await _tts.setSharedInstance(true);
+    await _tts.setIosAudioCategory(IosTextToSpeechAudioCategory.playback, [
+      IosTextToSpeechAudioCategoryOptions.mixWithOthers,
+    ]);
+  }
+
   Future<void> read(String text, String language) async {
     await _configure();
+    await _assertAudioCategory();
     await _tts.stop();
     _text = text;
     _language = language;
@@ -871,6 +988,7 @@ class _Reader {
   Future<void> pause() => _tts.stop();
 
   Future<void> resume() async {
+    await _assertAudioCategory();
     _base = _position;
     await _tts.setLanguage(_language);
     await _tts.speak(_text.substring(_position.clamp(0, _text.length)));
@@ -878,7 +996,20 @@ class _Reader {
 
   Future<void> stop() => _tts.stop();
 
+  /// Android keeps the TTS engine speaking after the app is backgrounded
+  /// (iOS suspends it with the app). A book has no business reading to a
+  /// closed cover — stop the voice when the app leaves the foreground.
+  /// The speak future completes on stop, so the book's ▶ control resets
+  /// by its normal completion path.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) {
+      _tts.stop();
+    }
+  }
+
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _tts.stop();
   }
 }

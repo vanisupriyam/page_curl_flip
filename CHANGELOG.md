@@ -49,7 +49,10 @@ Initial release.
   book turn nothing and count nothing.
   Customizable via `showSwipeHint`,
   `FlipBookStrings.swipeHint`, `FlipBookTheme.swipeHintStyle`, and
-  `FlipBookTheme.swipeHintArrowSize`.
+  `FlipBookTheme.swipeHintArrowSize`. The package persists nothing between
+  opens — `onSwipeHintRetired` fires exactly once when the gesture counts
+  as learned, so the app can remember and pass `showSwipeHint: false` next
+  time.
 - `initialPage`, `onPageChanged` (also fired when a shrinking page list
   clamps the current page), and an opt-in `showPageNumber` "3 / 12"
   indicator styled by `FlipBookTheme.pageNumberStyle`.
