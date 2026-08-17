@@ -8,11 +8,14 @@ import 'package:flutter/material.dart';
 ///   icons: const FlipBookIcons(
 ///     next: Icons.arrow_forward_ios,
 ///     previous: Icons.arrow_back_ios,
-///     play: Icons.play_circle,
+///     volumeOn: Icons.music_note,
 ///   ),
 ///   ...
 /// )
 /// ```
+///
+/// The voice controls (PLAY, PAUSE, …) are text buttons, not icons — their
+/// content is customized through `FlipBookVoiceChips`.
 ///
 /// The [previous]/[next] pair is mirrored automatically under RTL so the
 /// arrows keep pointing the way the page travels.
@@ -25,9 +28,6 @@ class FlipBookIcons {
     this.next = Icons.chevron_right,
     this.volumeOn = Icons.volume_up,
     this.volumeOff = Icons.volume_off,
-    this.play = Icons.play_arrow,
-    this.pause = Icons.pause,
-    this.stop = Icons.stop,
     this.search = Icons.search,
     this.bookmark = Icons.bookmark,
     this.size = 16,
@@ -48,22 +48,13 @@ class FlipBookIcons {
   /// Speaker while the flip sound is muted.
   final IconData volumeOff;
 
-  /// The read-aloud play button.
-  final IconData play;
-
-  /// The read-aloud pause button.
-  final IconData pause;
-
-  /// The read-aloud stop button.
-  final IconData stop;
-
   /// Prefix icon of the table-of-contents search field.
   final IconData search;
 
   /// Marker on the table of contents' current row.
   final IconData bookmark;
 
-  /// Size of the footer icons (chevrons, speaker, play/pause/stop).
+  /// Size of the footer icons (the PREV/NEXT chevrons and the speaker).
   final double size;
 
   /// Returns a copy of this icon set with the given fields replaced.
@@ -73,9 +64,6 @@ class FlipBookIcons {
     IconData? next,
     IconData? volumeOn,
     IconData? volumeOff,
-    IconData? play,
-    IconData? pause,
-    IconData? stop,
     IconData? search,
     IconData? bookmark,
     double? size,
@@ -86,9 +74,6 @@ class FlipBookIcons {
       next: next ?? this.next,
       volumeOn: volumeOn ?? this.volumeOn,
       volumeOff: volumeOff ?? this.volumeOff,
-      play: play ?? this.play,
-      pause: pause ?? this.pause,
-      stop: stop ?? this.stop,
       search: search ?? this.search,
       bookmark: bookmark ?? this.bookmark,
       size: size ?? this.size,
@@ -103,14 +88,11 @@ class FlipBookIcons {
       other.next == next &&
       other.volumeOn == volumeOn &&
       other.volumeOff == volumeOff &&
-      other.play == play &&
-      other.pause == pause &&
-      other.stop == stop &&
       other.search == search &&
       other.bookmark == bookmark &&
       other.size == size;
 
   @override
-  int get hashCode => Object.hash(close, previous, next, volumeOn, volumeOff,
-      play, pause, stop, search, bookmark, size);
+  int get hashCode => Object.hash(
+      close, previous, next, volumeOn, volumeOff, search, bookmark, size);
 }

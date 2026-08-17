@@ -29,8 +29,14 @@ class FlipBookStrings {
     this.mute = 'Mute flip sound',
     this.unmute = 'Unmute flip sound',
     this.readAloud = 'Read this page aloud',
+    this.readAllAloud = 'Read the whole book aloud',
     this.pauseReading = 'Pause reading',
     this.stopReading = 'Stop reading',
+    this.play = 'PLAY',
+    this.playAll = 'PLAY ALL',
+    this.pause = 'PAUSE',
+    this.resume = 'RESUME',
+    this.stop = 'STOP',
     this.swipeHint = 'Swipe to turn the page',
   });
 
@@ -61,11 +67,29 @@ class FlipBookStrings {
   /// Semantic label of the read-aloud button (see `FlipBook.onReadAloud`).
   final String readAloud;
 
+  /// Semantic label of the play-all button (`FlipBook.readAloudAdvances`).
+  final String readAllAloud;
+
   /// Semantic label of the pause button while reading is in progress.
   final String pauseReading;
 
   /// Semantic label of the stop button while reading or paused.
   final String stopReading;
+
+  /// Visible label of the play chip (reads the shown page).
+  final String play;
+
+  /// Visible label of the play-all chip (`FlipBook.readAloudAdvances`).
+  final String playAll;
+
+  /// Visible label of the pause chip while reading.
+  final String pause;
+
+  /// Visible label of the resume chip while paused.
+  final String resume;
+
+  /// Visible label of the stop chip while reading or paused.
+  final String stop;
 
   /// Text of the transient swipe hint shown when the book opens.
   final String swipeHint;
@@ -82,8 +106,14 @@ class FlipBookStrings {
       other.mute == mute &&
       other.unmute == unmute &&
       other.readAloud == readAloud &&
+      other.readAllAloud == readAllAloud &&
       other.pauseReading == pauseReading &&
       other.stopReading == stopReading &&
+      other.play == play &&
+      other.playAll == playAll &&
+      other.pause == pause &&
+      other.resume == resume &&
+      other.stop == stop &&
       other.swipeHint == swipeHint;
 
   @override
@@ -97,7 +127,13 @@ class FlipBookStrings {
       mute,
       unmute,
       readAloud,
+      readAllAloud,
       pauseReading,
       stopReading,
+      play,
+      playAll,
+      pause,
+      resume,
+      stop,
       swipeHint);
 }

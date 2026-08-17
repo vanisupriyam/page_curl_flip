@@ -22,3 +22,9 @@ test/goldens/
 
 # The README demo GIF — GitHub serves it; it never ships in the archive.
 doc/
+
+# Local coverage output — never package content.
+coverage/
+
+# Golden failure dumps from red runs — debug artefacts only.
+test/failures/

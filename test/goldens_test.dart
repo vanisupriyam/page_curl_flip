@@ -72,7 +72,6 @@ void main() {
           icons: const FlipBookIcons(
             next: Icons.arrow_forward_ios,
             previous: Icons.arrow_back_ios_new,
-            play: Icons.play_circle_outline,
           ),
         ),
       );

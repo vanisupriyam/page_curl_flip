@@ -397,7 +397,6 @@ void main() {
           icons: const FlipBookIcons(
             next: Icons.arrow_forward,
             close: Icons.cancel,
-            play: Icons.play_circle,
           ),
           onReadAloud: (_) async {},
           pages: const [
@@ -408,9 +407,34 @@ void main() {
       ));
       expect(find.byIcon(Icons.arrow_forward), findsOneWidget);
       expect(find.byIcon(Icons.cancel), findsOneWidget);
-      expect(find.byIcon(Icons.play_circle), findsOneWidget);
       expect(find.byIcon(Icons.chevron_right), findsNothing);
       expect(find.byIcon(Icons.close), findsNothing);
+    });
+
+    testWidgets(
+        'voice chips are text by default and accept any widget as content',
+        (tester) async {
+      final done = Completer<void>();
+      await tester.pumpWidget(MaterialApp(
+        home: FlipBook(
+          onClose: () {},
+          enableSound: false,
+          voiceChips: const FlipBookVoiceChips(
+            play: Icon(Icons.play_circle, size: 16),
+          ),
+          onReadAloud: (_) => done.future,
+          pages: const [FlipBookPage(title: 'One', body: Text('page one'))],
+        ),
+      ));
+      // The play chip carries the custom icon instead of its text label…
+      expect(find.byIcon(Icons.play_circle), findsOneWidget);
+      expect(find.text('PLAY'), findsNothing);
+      // …while an un-customized chip keeps its self-explaining text.
+      await tester.tap(find.byIcon(Icons.play_circle));
+      await tester.pump();
+      expect(find.text('STOP'), findsOneWidget);
+      done.complete();
+      await tester.pump();
     });
 
     testWidgets('title prints on the page with its tagline', (tester) async {
@@ -550,6 +574,32 @@ void main() {
       expect(custom.next, Icons.arrow_forward);
       expect(custom.size, 20);
       expect(custom.previous, base.previous);
+      // Value semantics: same fields = equal, a changed field = not equal.
+      expect(base, const FlipBookIcons());
+      expect(base.hashCode, const FlipBookIcons().hashCode);
+      expect(custom, isNot(base));
+    });
+
+    testWidgets('icons.size drives the footer chevrons and speaker',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: FlipBook(
+          onClose: () {},
+          icons: const FlipBookIcons(size: 24),
+          onPageFlip: () async {},
+          // Off so the hint's chevron train stays out of the icon finders.
+          showSwipeHint: false,
+          pages: const [
+            FlipBookPage(title: 'One', body: Text('page one')),
+            FlipBookPage(title: 'Two', body: Text('page two')),
+          ],
+        ),
+      ));
+      expect(
+        tester.widget<Icon>(find.byIcon(Icons.chevron_right)).size,
+        24,
+      );
+      expect(tester.widget<Icon>(find.byIcon(Icons.volume_up)).size, 24);
     });
 
     testWidgets('close button fires onClose', (tester) async {
@@ -559,10 +609,223 @@ void main() {
       expect(closed, isTrue);
     });
 
+    testWidgets(
+        'TTS-14: the opt-in progress bar and timing label show the app-fed '
+        'values only while reading', (tester) async {
+      final done = Completer<void>();
+      Widget book({
+        required bool showBar,
+        required double progress,
+        String? label,
+      }) {
+        return MaterialApp(
+          home: FlipBook(
+            onClose: () {},
+            enableSound: false,
+            showReadAloudProgress: showBar,
+            readAloudProgress: progress,
+            readAloudProgressLabel: label,
+            onReadAloud: (_) => done.future,
+            pages: const [FlipBookPage(title: 'One', body: Text('page one'))],
+          ),
+        );
+      }
+
+      bool barShown() =>
+          find.byType(FractionallySizedBox).evaluate().isNotEmpty;
+      double barValue() => tester
+          .widget<FractionallySizedBox>(find.byType(FractionallySizedBox))
+          .widthFactor!;
+
+      // Idle: no bar even with the switch on.
+      await tester.pumpWidget(book(showBar: true, progress: 0.4));
+      expect(barShown(), isFalse, reason: 'idle book shows no bar');
+
+      // Playing: the bar renders exactly the app-fed value; no label row
+      // when the app feeds none.
+      await tester.tap(find.text('PLAY'));
+      await tester.pump();
+      expect(barValue(), 0.4);
+      expect(find.text('0:07'), findsNothing);
+
+      // The app feeds a newer value + a timing label; out-of-range input
+      // is clamped.
+      await tester
+          .pumpWidget(book(showBar: true, progress: 1.7, label: '0:07'));
+      expect(barValue(), 1.0, reason: 'progress is clamped into 0..1');
+      expect(find.text('0:07'), findsOneWidget);
+
+      // Default-off: same reading state, no bar, no label.
+      await tester
+          .pumpWidget(book(showBar: false, progress: 0.4, label: '0:07'));
+      expect(barShown(), isFalse, reason: 'the bar is opt-in');
+      expect(find.text('0:07'), findsNothing);
+
+      done.complete();
+      await tester.pump();
+    });
+
+    testWidgets(
+        'TTS-15: the play-all button chains to the end of the book; plain '
+        'play stays page-only', (tester) async {
+      final calls = <int>[];
+      final completers = <Completer<void>>[];
+      await tester.pumpWidget(MaterialApp(
+        home: FlipBook(
+          onClose: () {},
+          enableSound: false,
+          readAloudAdvances: true,
+          onReadAloud: (i) {
+            calls.add(i);
+            final c = Completer<void>();
+            completers.add(c);
+            return c.future;
+          },
+          pages: const [
+            FlipBookPage(title: 'One', body: Text('page one')),
+            FlipBookPage(title: 'Two', body: Text('page two')),
+            FlipBookPage(title: 'Three', body: Text('page three')),
+          ],
+        ),
+      ));
+
+      // Plain ▶ reads only the shown page — completing it advances nothing.
+      await tester.tap(find.text('PLAY'));
+      await tester.pump();
+      expect(calls, [0]);
+      completers[0].complete();
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('page one'), findsOneWidget);
+      expect(calls, [0], reason: 'plain play never chains');
+
+      // The play-all button chains: each page that finishes naturally
+      // flips the book and reads on.
+      await tester.tap(find.text('PLAY ALL'));
+      await tester.pump();
+      expect(calls, [0, 0]);
+
+      completers[1].complete();
+      await tester.pump();
+      await _finishFlip(tester);
+      expect(find.text('page two'), findsOneWidget);
+      expect(calls, [0, 0, 1]);
+
+      completers[2].complete();
+      await tester.pump();
+      await _finishFlip(tester);
+      expect(find.text('page three'), findsOneWidget);
+      expect(calls, [0, 0, 1, 2]);
+
+      // The last page finishes → the chain ends at idle, no extra call.
+      completers[3].complete();
+      await tester.pump();
+      await tester.pump();
+      expect(calls, [0, 0, 1, 2]);
+      expect(find.text('PLAY'), findsOneWidget);
+    });
+
+    testWidgets(
+        'TTS-16: stop and a manual flip both break the readAloudAdvances '
+        'chain', (tester) async {
+      final calls = <int>[];
+      final completers = <Completer<void>>[];
+      await tester.pumpWidget(MaterialApp(
+        home: FlipBook(
+          onClose: () {},
+          enableSound: false,
+          readAloudAdvances: true,
+          onReadAloud: (i) {
+            calls.add(i);
+            final c = Completer<void>();
+            completers.add(c);
+            return c.future;
+          },
+          pages: const [
+            FlipBookPage(title: 'One', body: Text('page one')),
+            FlipBookPage(title: 'Two', body: Text('page two')),
+            FlipBookPage(title: 'Three', body: Text('page three')),
+          ],
+        ),
+      ));
+
+      // Stop while page one is being play-all-read: the session dies, so
+      // the app future completing later must not advance anything.
+      await tester.tap(find.text('PLAY ALL'));
+      await tester.pump();
+      await tester.tap(find.text('STOP'));
+      await tester.pump();
+      completers[0].complete();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 2));
+      expect(find.text('page one'), findsOneWidget);
+      expect(calls, [0]);
+
+      // A manual flip during play-all stops the voice and ends the chain —
+      // the new page does not start reading by itself.
+      await tester.tap(find.text('PLAY ALL'));
+      await tester.pump();
+      expect(calls, [0, 0]);
+      await tester.tap(find.text('NEXT'));
+      await tester.pump();
+      completers[1].complete();
+      await _finishFlip(tester);
+      expect(find.text('page two'), findsOneWidget);
+      expect(calls, [0, 0]);
+      expect(find.text('PLAY'), findsOneWidget);
+    });
+
+    testWidgets(
+        'TTS-17: leaving the foreground stops the voice and the play-all '
+        'chain', (tester) async {
+      var stops = 0;
+      final calls = <int>[];
+      final completers = <Completer<void>>[];
+      await tester.pumpWidget(MaterialApp(
+        home: FlipBook(
+          onClose: () {},
+          enableSound: false,
+          readAloudAdvances: true,
+          onReadAloudStop: () => stops++,
+          onReadAloud: (i) {
+            calls.add(i);
+            final c = Completer<void>();
+            completers.add(c);
+            return c.future;
+          },
+          pages: const [
+            FlipBookPage(title: 'One', body: Text('page one')),
+            FlipBookPage(title: 'Two', body: Text('page two')),
+          ],
+        ),
+      ));
+
+      await tester.tap(find.text('PLAY ALL'));
+      await tester.pump();
+      expect(calls, [0]);
+
+      // The app goes to background: the package stops the reading state
+      // and tells the engine to stop.
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump();
+      expect(stops, 1, reason: 'backgrounding must stop the engine');
+
+      // The engine's future completing afterwards must not flip anything.
+      completers[0].complete();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 2));
+      expect(find.text('page one'), findsOneWidget);
+      expect(calls, [0], reason: 'no chain advance in the background');
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(find.text('PLAY'), findsOneWidget);
+    });
+
     testWidgets('play reads the shown page and returns to play when done',
         (tester) async {
       await tester.pumpWidget(_app());
-      expect(find.byIcon(Icons.play_arrow), findsNothing);
+      expect(find.text('PLAY'), findsNothing);
 
       int? readPage;
       await tester.pumpWidget(MaterialApp(
@@ -577,18 +840,18 @@ void main() {
         ),
       ));
 
-      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.tap(find.text('PLAY'));
       await tester.pump();
       expect(readPage, 0);
 
       // The instantly-completed future returns the control to idle.
       await tester.pump();
-      expect(find.byIcon(Icons.play_arrow), findsOneWidget);
-      expect(find.byIcon(Icons.stop), findsNothing);
+      expect(find.text('PLAY'), findsOneWidget);
+      expect(find.text('STOP'), findsNothing);
 
       await tester.tap(find.text('NEXT'));
       await _finishFlip(tester);
-      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.tap(find.text('PLAY'));
       await tester.pump();
       expect(readPage, 1);
       await tester.pump();
@@ -608,21 +871,21 @@ void main() {
         ),
       ));
 
-      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.tap(find.text('PLAY'));
       await tester.pump();
       // Playing without pause support: stop only.
-      expect(find.byIcon(Icons.stop), findsOneWidget);
-      expect(find.byIcon(Icons.pause), findsNothing);
-      expect(find.byIcon(Icons.play_arrow), findsNothing);
+      expect(find.text('STOP'), findsOneWidget);
+      expect(find.text('PAUSE'), findsNothing);
+      expect(find.text('PLAY'), findsNothing);
 
-      await tester.tap(find.byIcon(Icons.stop));
+      await tester.tap(find.text('STOP'));
       await tester.pump();
       expect(stopped, 1);
-      expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+      expect(find.text('PLAY'), findsOneWidget);
       // A stopped session's future completing later changes nothing.
       started.complete();
       await tester.pump();
-      expect(find.byIcon(Icons.stop), findsNothing);
+      expect(find.text('STOP'), findsNothing);
     });
 
     testWidgets('pause shows play+stop, resume continues, stop resets',
@@ -646,31 +909,31 @@ void main() {
         ),
       ));
 
-      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.tap(find.text('PLAY'));
       await tester.pump();
       // Playing with pause support: pause + stop.
-      expect(find.byIcon(Icons.pause), findsOneWidget);
-      expect(find.byIcon(Icons.stop), findsOneWidget);
+      expect(find.text('PAUSE'), findsOneWidget);
+      expect(find.text('STOP'), findsOneWidget);
 
-      await tester.tap(find.byIcon(Icons.pause));
+      await tester.tap(find.text('PAUSE'));
       await tester.pump();
       expect(paused, 1);
-      // Paused: play (resume) + stop.
-      expect(find.byIcon(Icons.play_arrow), findsOneWidget);
-      expect(find.byIcon(Icons.stop), findsOneWidget);
-      expect(find.byIcon(Icons.pause), findsNothing);
+      // Paused: RESUME + STOP.
+      expect(find.text('RESUME'), findsOneWidget);
+      expect(find.text('STOP'), findsOneWidget);
+      expect(find.text('PAUSE'), findsNothing);
 
-      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.tap(find.text('RESUME'));
       await tester.pump();
       expect(resumes, 1);
-      expect(find.byIcon(Icons.pause), findsOneWidget);
+      expect(find.text('PAUSE'), findsOneWidget);
 
       resumed.complete();
       await tester.pump();
       await tester.pump();
       // Finished: back to the single play button.
-      expect(find.byIcon(Icons.play_arrow), findsOneWidget);
-      expect(find.byIcon(Icons.stop), findsNothing);
+      expect(find.text('PLAY'), findsOneWidget);
+      expect(find.text('STOP'), findsNothing);
       first.complete();
     });
 
@@ -685,11 +948,11 @@ void main() {
         ),
       ));
 
-      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.tap(find.text('PLAY'));
       await tester.pump();
       await tester.pump();
-      expect(find.byIcon(Icons.play_arrow), findsOneWidget);
-      expect(find.byIcon(Icons.stop), findsNothing);
+      expect(find.text('PLAY'), findsOneWidget);
+      expect(find.text('STOP'), findsNothing);
       expect(tester.takeException(), isNull);
     });
 
@@ -709,7 +972,7 @@ void main() {
         ),
       ));
 
-      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.tap(find.text('PLAY'));
       await tester.pump();
       await tester.tap(find.text('NEXT'));
       await _finishFlip(tester);
@@ -728,6 +991,79 @@ void main() {
       ));
       expect(find.byIcon(Icons.volume_up), findsNothing);
       expect(find.byIcon(Icons.volume_off), findsNothing);
+    });
+  });
+
+  group('Chrome (FlipBookChrome)', () {
+    Widget book({
+      FlipBookChrome chrome = FlipBookChrome.autoHide,
+      Duration revealFor = const Duration(seconds: 3),
+    }) {
+      return MaterialApp(
+        home: FlipBook(
+          onClose: () {},
+          enableSound: false,
+          chrome: chrome,
+          chromeRevealFor: revealFor,
+          showSwipeHint: false,
+          pages: const [
+            FlipBookPage(title: 'One', body: Text('page one')),
+            FlipBookPage(title: 'Two', body: Text('page two')),
+          ],
+        ),
+      );
+    }
+
+    double footerOpacity(WidgetTester tester) =>
+        tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity;
+
+    testWidgets(
+        'CHR-01: autoHide opens as a pure page; a tap reveals the footer '
+        'and its buttons work', (tester) async {
+      await tester.pumpWidget(book());
+      expect(footerOpacity(tester), 0, reason: 'the book opens as a page');
+
+      // A tap anywhere on the page reveals the footer.
+      await tester.tap(find.text('page one'));
+      await tester.pump();
+      expect(footerOpacity(tester), 1);
+
+      // The revealed footer is fully functional.
+      await tester.tap(find.text('NEXT'));
+      await _finishFlip(tester);
+      expect(find.text('page two'), findsOneWidget);
+    });
+
+    testWidgets(
+        'CHR-02: the revealed footer retires after chromeRevealFor; a '
+        'second tap hides it immediately', (tester) async {
+      await tester.pumpWidget(book(revealFor: const Duration(seconds: 1)));
+      await tester.tap(find.text('page one'));
+      await tester.pump();
+      expect(footerOpacity(tester), 1);
+
+      // Untouched, it fades away by itself.
+      await tester.pump(const Duration(milliseconds: 1200));
+      expect(footerOpacity(tester), 0);
+
+      // Tap toggles: reveal, then hide on the next tap.
+      await tester.tap(find.text('page one'));
+      await tester.pump();
+      expect(footerOpacity(tester), 1);
+      await tester.tap(find.text('page one'));
+      await tester.pump();
+      expect(footerOpacity(tester), 0);
+    });
+
+    testWidgets('CHR-03: the default mode keeps the footer always visible',
+        (tester) async {
+      await tester.pumpWidget(book(chrome: FlipBookChrome.always));
+      expect(footerOpacity(tester), 1);
+
+      // Taps and time change nothing.
+      await tester.tap(find.text('page one'));
+      await tester.pump(const Duration(seconds: 5));
+      expect(footerOpacity(tester), 1);
     });
   });
 
@@ -925,8 +1261,8 @@ void main() {
         return reading.future;
       }));
 
-      await tester.tap(find.byIcon(Icons.play_arrow));
-      await tester.tap(find.byIcon(Icons.play_arrow), warnIfMissed: false);
+      await tester.tap(find.text('PLAY'));
+      await tester.tap(find.text('PLAY'), warnIfMissed: false);
       await tester.pump();
       expect(starts, 1);
 

@@ -35,10 +35,14 @@ class FlipBookTheme {
     this.tocSplashColor = const Color(0x14000000),
     this.pageTitleStyle = _pageTitle,
     this.pageTaglineStyle = _pageTagline,
-    this.pagePadding = const EdgeInsets.fromLTRB(32, 24, 32, 24),
+    this.pagePadding = const EdgeInsets.fromLTRB(32, 72, 32, 96),
     this.pageNumberStyle = _footerLabel,
     this.swipeHintStyle = _swipeHint,
     this.swipeHintArrowSize = 20,
+    this.readAloudProgressColor = Colors.black54,
+    this.readAloudProgressTrackColor = const Color(0x14000000),
+    this.readAloudProgressLabelStyle = _footerLabel,
+    this.voiceChipStyle = _footerLabel,
   });
 
   static const TextStyle _footerLabel = TextStyle(
@@ -147,7 +151,9 @@ class FlipBookTheme {
 
   /// Padding around a page the book lays out itself (printed title /
   /// tagline / body). Ignored when a page shows only a `body` — that fills
-  /// the paper edge-to-edge.
+  /// the paper edge-to-edge. Every page paints behind the floating chrome,
+  /// so the default clears the header (top) and footer (bottom); shrink it
+  /// if your book hides its chrome.
   final EdgeInsetsGeometry pagePadding;
 
   /// Text style for the optional "3 / 12" page indicator.
@@ -160,6 +166,19 @@ class FlipBookTheme {
 
   /// Size of the fading chevrons beside the swipe hint text.
   final double swipeHintArrowSize;
+
+  /// Fill colour of the read-aloud progress bar (the completed part).
+  final Color readAloudProgressColor;
+
+  /// Track colour of the read-aloud progress bar (the pending part).
+  final Color readAloudProgressTrackColor;
+
+  /// Text style of the app-fed timing label above the progress bar.
+  final TextStyle readAloudProgressLabelStyle;
+
+  /// Text style of the voice buttons (PLAY, PLAY ALL, PAUSE, RESUME,
+  /// STOP) — plain text buttons, like PREV/NEXT/INDEX.
+  final TextStyle voiceChipStyle;
 
   /// Returns a copy of this theme with the given fields replaced.
   FlipBookTheme copyWith({
@@ -186,6 +205,10 @@ class FlipBookTheme {
     TextStyle? pageNumberStyle,
     TextStyle? swipeHintStyle,
     double? swipeHintArrowSize,
+    Color? readAloudProgressColor,
+    Color? readAloudProgressTrackColor,
+    TextStyle? readAloudProgressLabelStyle,
+    TextStyle? voiceChipStyle,
   }) {
     return FlipBookTheme(
       closeIconColor: closeIconColor ?? this.closeIconColor,
@@ -213,6 +236,13 @@ class FlipBookTheme {
       pageNumberStyle: pageNumberStyle ?? this.pageNumberStyle,
       swipeHintStyle: swipeHintStyle ?? this.swipeHintStyle,
       swipeHintArrowSize: swipeHintArrowSize ?? this.swipeHintArrowSize,
+      readAloudProgressColor:
+          readAloudProgressColor ?? this.readAloudProgressColor,
+      readAloudProgressTrackColor:
+          readAloudProgressTrackColor ?? this.readAloudProgressTrackColor,
+      readAloudProgressLabelStyle:
+          readAloudProgressLabelStyle ?? this.readAloudProgressLabelStyle,
+      voiceChipStyle: voiceChipStyle ?? this.voiceChipStyle,
     );
   }
 }
