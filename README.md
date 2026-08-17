@@ -9,7 +9,7 @@ customizable, and sound is a callback you plug anything into. Built-in page
 layout and searchable table of contents. RTL-aware. Works on Android, iOS,
 web, and desktop.
 
-<!-- TODO before publishing: demo GIF here -->
+![page_curl_flip demo — LTR and RTL books, swipes, buttons, and read-aloud](https://raw.githubusercontent.com/vanisupriyam/page_curl_flip/main/doc/demo.gif)
 
 ## Three entry points
 

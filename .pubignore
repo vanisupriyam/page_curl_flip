@@ -19,3 +19,6 @@ example/README.md
 
 # Golden baselines — CI artefacts, not package content.
 test/goldens/
+
+# The README demo GIF — GitHub serves it; it never ships in the archive.
+doc/
