@@ -249,8 +249,7 @@ class _CurlOverlayState extends State<CurlOverlay> {
       final sx = math.sin(cumAngle) * cylinderR;
       final sz = (1 - math.cos(cumAngle)) * cylinderR;
 
-      final mat = perspMat.clone()
-        ..translate(sx, 0.0, sz)
+      final mat = perspMat.multiplied(Matrix4.translationValues(sx, 0.0, sz))
         ..rotateY(-cumDeg * _deg2rad);
 
       final faceDeg = baseRot - cumDeg;
