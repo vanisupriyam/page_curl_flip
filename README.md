@@ -163,13 +163,12 @@ Idle shows a single ▶ play button. While reading it becomes ⏸ pause + ⏹ st
 play continues from where it paused. Stop always resets to the beginning, and
 flipping or jumping away stops the reading automatically.
 
-The voice controls are **text chips** — PLAY, PLAY ALL, PAUSE, RESUME,
-STOP in small rounded containers — because a word explains itself on every
-platform where a tooltip cannot. Every label localizes through
-`FlipBookStrings`, the pill styles through
-`FlipBookTheme.voiceChipStyle` / `voiceChipFillColor`, and any chip's
-content can be replaced with any widget (an icon, an image…) while the
-container, tap handling, and screen-reader labels stay the package's:
+The voice controls are **plain text buttons** — PLAY, PLAY ALL, PAUSE,
+RESUME, STOP, styled like PREV/NEXT — because a word explains itself on
+every platform where a tooltip cannot. Every label localizes through
+`FlipBookStrings`, the style through `FlipBookTheme.voiceChipStyle`, and
+any control's content can be replaced with any widget (an icon, an image…)
+while the tap handling and screen-reader labels stay the package's:
 
 ```dart
 FlipBook(
