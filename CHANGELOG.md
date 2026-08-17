@@ -25,7 +25,24 @@ Initial release.
 - Read-aloud: a centred ▶ play control that reads the shown page through any
   speech engine (`onReadAloud`), with ⏸ pause / resume (`onReadAloudPause` /
   `onReadAloudResume`) and ⏹ stop (`onReadAloudStop`); reading stops
-  automatically on navigation.
+  automatically on navigation. The controls are text chips (PLAY, PLAY
+  ALL, PAUSE, RESUME, STOP — localizable via `FlipBookStrings`, styled via
+  `FlipBookTheme.voiceChip*`); any chip's content is replaceable with any
+  widget through `FlipBookVoiceChips`. Every page paints edge to edge
+  behind the floating chrome (structured pages clear it via the default
+  `pagePadding`). Opt-in extras, all default off:
+  `readAloudAdvances` (a PLAY ALL chip beside PLAY reads the whole book —
+  the package flips and chains through the same callbacks; stop, pause,
+  manual flips, and the app leaving the foreground all stop it; plain ▶
+  stays page-only) and a player strip — `showReadAloudProgress` + app-fed
+  `readAloudProgress` 0..1 and free-form `readAloudProgressLabel` (engines
+  report no duration; the example feeds elapsed time), themable via
+  `FlipBookTheme.readAloudProgress*`.
+- Immersive reading: `chrome: FlipBookChrome.autoHide` opens the book as a
+  pure page — a tap reveals the footer, which fades away after
+  `chromeRevealFor` (bottom-edge hover reveals it on mouse platforms); the
+  × close button stays visible in every mode. Default is
+  `FlipBookChrome.always`, today's behaviour.
 - `FlipBookStrings` — every built-in label and semantic label overridable for
   localization.
 - `FlipBookController` + `showControls: false` — hide every built-in button

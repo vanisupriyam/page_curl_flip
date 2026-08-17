@@ -5,10 +5,12 @@ import 'package:flutter/material.dart';
 
 import 'capture.dart';
 import 'curl_overlay.dart';
+import 'flip_book_chrome.dart';
 import 'flip_book_icons.dart';
 import 'flip_book_page.dart';
 import 'flip_book_strings.dart';
 import 'flip_book_theme.dart';
+import 'flip_book_voice_chips.dart';
 import 'flip_speed.dart';
 
 /// Drives a [FlipBook] from outside the widget — flip, jump, open the table
@@ -163,6 +165,13 @@ class FlipBook extends StatefulWidget {
     this.onReadAloudStop,
     this.onReadAloudPause,
     this.onReadAloudResume,
+    this.readAloudAdvances = false,
+    this.showReadAloudProgress = false,
+    this.readAloudProgress = 0.0,
+    this.readAloudProgressLabel,
+    this.chrome = FlipBookChrome.always,
+    this.chromeRevealFor = const Duration(seconds: 3),
+    this.voiceChips = const FlipBookVoiceChips(),
     this.shine,
     this.shadow,
   });
@@ -293,6 +302,54 @@ class FlipBook extends StatefulWidget {
   /// finishes.
   final Future<void> Function()? onReadAloudResume;
 
+  /// Play-all: when a page finishes reading naturally, the book flips
+  /// forward by itself and reads the next page, to the end of the book —
+  /// one ▶ reads the whole book like an audiobook. Off by default.
+  /// ⏹ stops the chain; ⏸ pauses it (▶ resumes and the chain continues);
+  /// a manual flip or jump breaks it. Uses the same [onReadAloud]
+  /// callbacks — the app changes nothing.
+  final bool readAloudAdvances;
+
+  /// Whether a thin progress bar shows above the footer while a page is
+  /// being read aloud — like a regular audio player. Off by default. The
+  /// package makes no sound and therefore knows no position: the app owns
+  /// the speech engine, so the app feeds the bar through
+  /// [readAloudProgress] (and, optionally, [readAloudProgressLabel]).
+  /// Styling: `FlipBookTheme.readAloudProgressColor`,
+  /// `readAloudProgressTrackColor`, `readAloudProgressLabelStyle`.
+  final bool showReadAloudProgress;
+
+  /// How much of the page has been read aloud, from 0.0 to 1.0 (values
+  /// outside the range are clamped). Rebuild the book with the newest
+  /// value as your speech engine reports progress — the example wires it
+  /// to the TTS word-boundary events. Ignored while [showReadAloudProgress]
+  /// is `false`; the bar only renders while reading is active.
+  final double readAloudProgress;
+
+  /// Optional text drawn above the progress bar — a timing readout in a
+  /// player. Speech engines report no duration, so the package takes any
+  /// string the app feeds: the example shows elapsed time ("0:07"); yours
+  /// could show a word count, a page estimate, or nothing (null hides the
+  /// row). Only rendered while the bar itself shows.
+  final String? readAloudProgressLabel;
+
+  /// How the footer presents itself. [FlipBookChrome.always] (default)
+  /// keeps it visible; [FlipBookChrome.autoHide] opens the book as a pure
+  /// page — a tap reveals the footer, which fades away again after
+  /// [chromeRevealFor]. The × close button stays visible in every mode.
+  final FlipBookChrome chrome;
+
+  /// In [FlipBookChrome.autoHide]: how long the revealed footer stays
+  /// before fading away again. Any footer interaction restarts the clock.
+  final Duration chromeRevealFor;
+
+  /// Optional custom content for the voice chips. By default every chip is
+  /// a text label from [strings] (PLAY, PLAY ALL, PAUSE, RESUME, STOP) —
+  /// self-explaining on every platform. Give any field a widget (an icon,
+  /// an image…) to replace that chip's content; container, tap handling,
+  /// and screen-reader labels stay the package's.
+  final FlipBookVoiceChips voiceChips;
+
   /// Strength of the sheen on the curling paper, 0–1. `null` (default)
   /// adapts to [pageColor] — full sheen on white paper, a whisper on dark
   /// paper. `0` removes the light completely.
@@ -307,7 +364,7 @@ class FlipBook extends StatefulWidget {
 }
 
 class _FlipBookState extends State<FlipBook>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   int _pageIndex = 0;
   int _nextIndex = 0;
   _FlipPhase _flipPhase = _FlipPhase.idle;
@@ -316,9 +373,18 @@ class _FlipBookState extends State<FlipBook>
 
   _ReadPhase _readPhase = _ReadPhase.idle;
   int _readSession = 0;
+
+  /// Whether the current read session belongs to the play-all chain
+  /// ([FlipBook.readAloudAdvances]) — set per tap, so ▶ stays page-only.
+  bool _readChains = false;
   bool _swipeHintVisible = false;
   int _swipeHintSwipeCount = 0;
   Timer? _swipeHintTimer;
+
+  /// Footer visibility under [FlipBookChrome.autoHide]; permanently true
+  /// under [FlipBookChrome.always].
+  bool _chromeVisible = true;
+  Timer? _chromeTimer;
 
   ui.Image? _capturedImage;
   final _repaintKey = GlobalKey();
@@ -334,6 +400,7 @@ class _FlipBookState extends State<FlipBook>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     if (widget.pages.isNotEmpty) {
       _pageIndex = widget.initialPage.clamp(0, widget.pages.length - 1);
       _nextIndex = _pageIndex;
@@ -347,6 +414,20 @@ class _FlipBookState extends State<FlipBook>
     if (_swipeHintEligible) {
       _swipeHintVisible = true;
       _armSwipeHintHide();
+    }
+    // Immersive mode opens as a pure page; the first tap reveals the
+    // footer. In `always` mode the footer simply is.
+    _chromeVisible = widget.chrome == FlipBookChrome.always;
+  }
+
+  /// Leaving the foreground stops ALL reading operations — the voice and
+  /// the play-all chain alike. Without this the engine's stopped future
+  /// would complete in the background and the chain would keep flipping a
+  /// book nobody is looking at.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) {
+      _stopReading();
     }
   }
 
@@ -464,8 +545,10 @@ class _FlipBookState extends State<FlipBook>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     widget.controller?._detach(this);
     _swipeHintTimer?.cancel();
+    _chromeTimer?.cancel();
     // Reverse order of creation: the curve listens to the controller, so it
     // must detach before the controller goes away.
     _curved.dispose();
@@ -534,13 +617,36 @@ class _FlipBookState extends State<FlipBook>
       return;
     }
     setState(() => _readPhase = _ReadPhase.idle);
+    if (widget.readAloudAdvances && _readChains) {
+      unawaited(_advanceReading());
+    }
   }
 
-  void _playReading(int page) {
+  /// The play-all chain ([FlipBook.readAloudAdvances]): a page that finishes
+  /// reading naturally flips forward and reads on, to the end of the book.
+  /// Stop, a manual flip, or a jump all invalidate the session or move the
+  /// page out from under the chain — each check below ends it cleanly.
+  Future<void> _advanceReading() async {
+    final target = _pageIndex + 1;
+    if (target >= _pageCount || _flipPhase != _FlipPhase.idle) {
+      return; // Last page, or a flip already in progress.
+    }
+    await _goNext();
+    if (!mounted ||
+        _readPhase != _ReadPhase.idle ||
+        _flipPhase != _FlipPhase.idle ||
+        _pageIndex != target) {
+      return; // A user action won the race — the chain ends here.
+    }
+    _playReading(_pageIndex, chain: true);
+  }
+
+  void _playReading(int page, {bool chain = false}) {
     // EDG-06: two taps inside one frame must not start two speech sessions.
     if (_readPhase != _ReadPhase.idle) {
       return;
     }
+    _readChains = chain;
     final session = ++_readSession;
     setState(() => _readPhase = _ReadPhase.playing);
     unawaited(_awaitReading(session, widget.onReadAloud!(page)));
@@ -566,8 +672,47 @@ class _FlipBookState extends State<FlipBook>
       return;
     }
     _readSession++;
+    _readChains = false;
     widget.onReadAloudStop?.call();
     setState(() => _readPhase = _ReadPhase.idle);
+  }
+
+  // ── Chrome (footer) visibility ─────────────────────────────────────────────
+  // FlipBookChrome.always keeps the footer permanently on. autoHide is the
+  // immersive mode: a tap on the page toggles the footer, and a revealed
+  // footer retires by itself after chromeRevealFor of no interaction.
+
+  void _toggleChrome() {
+    if (widget.chrome != FlipBookChrome.autoHide) {
+      return;
+    }
+    if (_chromeVisible) {
+      _chromeTimer?.cancel();
+      setState(() => _chromeVisible = false);
+    } else {
+      _revealChrome();
+    }
+  }
+
+  void _revealChrome() {
+    if (widget.chrome != FlipBookChrome.autoHide) {
+      return;
+    }
+    if (!_chromeVisible) {
+      setState(() => _chromeVisible = true);
+    }
+    _armChromeHide();
+  }
+
+  /// (Re)starts the retire clock — called on reveal and on every footer
+  /// interaction, so the footer never vanishes mid-use.
+  void _armChromeHide() {
+    _chromeTimer?.cancel();
+    _chromeTimer = Timer(widget.chromeRevealFor, () {
+      if (mounted && widget.chrome == FlipBookChrome.autoHide) {
+        setState(() => _chromeVisible = false);
+      }
+    });
   }
 
   // ── Forward flip (NEXT) ────────────────────────────────────────────────────
@@ -805,14 +950,26 @@ class _FlipBookState extends State<FlipBook>
           : null,
       readPhase: _readPhase,
       canPauseReading: _canPauseReading,
+      readProgress: widget.showReadAloudProgress && widget.onReadAloud != null
+          ? widget.readAloudProgress.clamp(0.0, 1.0)
+          : null,
+      readProgressLabel:
+          widget.showReadAloudProgress ? widget.readAloudProgressLabel : null,
       onReadPlay: widget.onReadAloud != null
           ? () => _readPhase == _ReadPhase.paused
               ? _resumeReading()
               : _playReading(index)
           : null,
+      onReadPlayAll: widget.readAloudAdvances && widget.onReadAloud != null
+          ? () => _playReading(index, chain: true)
+          : null,
       onReadPause: _pauseReading,
       onReadStop: _stopReading,
       onToggleIndex: _toggleIndex,
+      chromeVisible: _chromeVisible || _showIndex,
+      onFooterInteraction:
+          widget.chrome == FlipBookChrome.autoHide ? _armChromeHide : null,
+      voiceChips: widget.voiceChips,
     );
   }
 
@@ -823,25 +980,32 @@ class _FlipBookState extends State<FlipBook>
       body: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onHorizontalDragEnd: _onSwipe,
-        child: SafeArea(
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // PREV capture target — rendered below the current page so it is
-              // painted (toImage works) but invisible to the user.
-              // ColoredBox gives it a solid background so it can be captured
-              // correctly (page content on pageColor, no transparency).
-              if (_flipPhase == _FlipPhase.capturingPrev)
-                RepaintBoundary(
-                  key: _prevCaptureKey,
-                  child: ColoredBox(
-                    color: widget.pageColor,
-                    child: _buildPage(_nextIndex),
-                  ),
+        // Immersive mode: a tap on the page toggles the footer. Taps that
+        // land on buttons are consumed by them and never reach this.
+        onTap: widget.chrome == FlipBookChrome.autoHide ? _toggleChrome : null,
+        // No SafeArea here: pages paint to the physical screen edges (a
+        // black cover is black to the last pixel). The chrome, the TOC,
+        // and the built-in page layout carry their own SafeArea, so
+        // buttons and text still clear notches and system bars.
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // PREV capture target — rendered below the current page so it is
+            // painted (toImage works) but invisible to the user.
+            // ColoredBox gives it a solid background so it can be captured
+            // correctly (page content on pageColor, no transparency).
+            if (_flipPhase == _FlipPhase.capturingPrev)
+              RepaintBoundary(
+                key: _prevCaptureKey,
+                child: ColoredBox(
+                  color: widget.pageColor,
+                  child: _buildPage(_nextIndex),
                 ),
+              ),
 
-              if (_showIndex && _hasIndex)
-                _IndexPage(
+            if (_showIndex && _hasIndex)
+              SafeArea(
+                child: _IndexPage(
                   pages: widget.pages,
                   currentPage: _pageIndex,
                   headerAction: widget.headerAction,
@@ -850,68 +1014,84 @@ class _FlipBookState extends State<FlipBook>
                   icons: widget.icons,
                   onSelect: _jumpToPage,
                   onClose: _toggleIndex,
-                )
-              else if (_flipPhase == _FlipPhase.animatingForward)
-                // NEXT: destination page shows through as the current page peels
-                // away. IgnorePointer keeps layout identical (buttons present)
-                // so there is no footer shift when animation ends.
-                IgnorePointer(
-                  child: _buildPage(_nextIndex),
-                )
-              else
-                // PREV (animating or idle): ColoredBox makes this page opaque so
-                // it fully hides the capture target stacked below during
-                // _capturingPrev. IgnorePointer blocks touches during animation
-                // without changing the widget tree, so no layout shift occurs.
-                IgnorePointer(
-                  ignoring: _flipPhase == _FlipPhase.animatingBackward,
-                  child: RepaintBoundary(
-                    key: _repaintKey,
-                    child: ColoredBox(
-                      color: widget.pageColor,
-                      child: _buildPage(_pageIndex),
+                ),
+              )
+            else if (_flipPhase == _FlipPhase.animatingForward)
+              // NEXT: destination page shows through as the current page peels
+              // away. IgnorePointer keeps layout identical (buttons present)
+              // so there is no footer shift when animation ends.
+              IgnorePointer(
+                child: _buildPage(_nextIndex),
+              )
+            else
+              // PREV (animating or idle): ColoredBox makes this page opaque so
+              // it fully hides the capture target stacked below during
+              // _capturingPrev. IgnorePointer blocks touches during animation
+              // without changing the widget tree, so no layout shift occurs.
+              IgnorePointer(
+                ignoring: _flipPhase == _FlipPhase.animatingBackward,
+                child: RepaintBoundary(
+                  key: _repaintKey,
+                  child: ColoredBox(
+                    color: widget.pageColor,
+                    child: _buildPage(_pageIndex),
+                  ),
+                ),
+              ),
+
+            if ((_flipPhase == _FlipPhase.animatingForward ||
+                    _flipPhase == _FlipPhase.animatingBackward) &&
+                !_showIndex)
+              AnimatedBuilder(
+                animation: _curved,
+                builder: (_, __) => CurlOverlay(
+                  progress: _curved.value,
+                  pageImage: _capturedImage,
+                  pageColor: widget.pageColor,
+                  shine: widget.shine,
+                  shadow: widget.shadow,
+                ),
+              ),
+
+            // Transient swipe hint — no pill, no background: just the
+            // text with fading chevrons. It greets every page and returns
+            // on a FlipBook.swipeHintDelay cycle while the reader stays.
+            if (widget.showSwipeHint && widget.swipeToFlip && !_showIndex)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 96,
+                child: IgnorePointer(
+                  child: Center(
+                    // AnimatedSwitcher rather than AnimatedOpacity so the
+                    // hint leaves the tree entirely while hidden — its
+                    // chevrons must not pollute icon finders or semantics.
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 450),
+                      child: _swipeHintVisible
+                          ? _buildSwipeHint()
+                          : const SizedBox.shrink(),
                     ),
                   ),
                 ),
+              ),
 
-              if ((_flipPhase == _FlipPhase.animatingForward ||
-                      _flipPhase == _FlipPhase.animatingBackward) &&
-                  !_showIndex)
-                AnimatedBuilder(
-                  animation: _curved,
-                  builder: (_, __) => CurlOverlay(
-                    progress: _curved.value,
-                    pageImage: _capturedImage,
-                    pageColor: widget.pageColor,
-                    shine: widget.shine,
-                    shadow: widget.shadow,
-                  ),
+            // Immersive mode, mouse platforms: hovering over the bottom
+            // of the book reveals the footer — the desktop/web
+            // equivalent of the tap. Mouse-only; touches pass through.
+            if (widget.chrome == FlipBookChrome.autoHide)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: 96,
+                child: MouseRegion(
+                  opaque: false,
+                  hitTestBehavior: HitTestBehavior.translucent,
+                  onEnter: (_) => _revealChrome(),
                 ),
-
-              // Transient swipe hint — no pill, no background: just the
-              // text with fading chevrons. It greets every page and returns
-              // on a FlipBook.swipeHintDelay cycle while the reader stays.
-              if (widget.showSwipeHint && widget.swipeToFlip && !_showIndex)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 96,
-                  child: IgnorePointer(
-                    child: Center(
-                      // AnimatedSwitcher rather than AnimatedOpacity so the
-                      // hint leaves the tree entirely while hidden — its
-                      // chevrons must not pollute icon finders or semantics.
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 450),
-                        child: _swipeHintVisible
-                            ? _buildSwipeHint()
-                            : const SizedBox.shrink(),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
+              ),
+          ],
         ),
       ),
     );
@@ -958,6 +1138,8 @@ class _FlipBookScaffold extends StatelessWidget {
     required this.readPhase,
     required this.canPauseReading,
     required this.fullBleed,
+    this.readProgress,
+    this.readProgressLabel,
     this.pageNumber,
     this.headerAction,
     this.onClose,
@@ -965,9 +1147,13 @@ class _FlipBookScaffold extends StatelessWidget {
     this.onPrev,
     this.onMuteToggle,
     this.onReadPlay,
+    this.onReadPlayAll,
     this.onReadPause,
     this.onReadStop,
     this.onToggleIndex,
+    this.chromeVisible = true,
+    this.onFooterInteraction,
+    this.voiceChips = const FlipBookVoiceChips(),
   });
 
   final Widget content;
@@ -980,6 +1166,12 @@ class _FlipBookScaffold extends StatelessWidget {
   final _ReadPhase readPhase;
   final bool canPauseReading;
   final bool fullBleed;
+
+  /// Read-aloud progress 0..1, or null when the bar is disabled.
+  final double? readProgress;
+
+  /// App-fed timing text above the bar; null hides the row.
+  final String? readProgressLabel;
   final String? pageNumber;
   final Widget? headerAction;
   final VoidCallback? onClose;
@@ -987,9 +1179,21 @@ class _FlipBookScaffold extends StatelessWidget {
   final VoidCallback? onPrev;
   final VoidCallback? onMuteToggle;
   final VoidCallback? onReadPlay;
+  final VoidCallback? onReadPlayAll;
   final VoidCallback? onReadPause;
   final VoidCallback? onReadStop;
   final VoidCallback? onToggleIndex;
+
+  /// Footer visibility (FlipBookChrome) — while false the footer fades out
+  /// and stops accepting taps. The header is not affected.
+  final bool chromeVisible;
+
+  /// Fired on any pointer-down inside the footer so the auto-hide clock
+  /// restarts; null outside autoHide mode.
+  final VoidCallback? onFooterInteraction;
+
+  /// Custom chip content; null fields render the text labels.
+  final FlipBookVoiceChips voiceChips;
 
   @override
   Widget build(BuildContext context) {
@@ -997,14 +1201,18 @@ class _FlipBookScaffold extends StatelessWidget {
       // Chrome-free book: pure pages, driven by a FlipBookController.
       return content;
     }
-    if (fullBleed) {
-      // Body-only page: the body paints edge to edge — dark pages are
-      // fully dark — and the chrome floats above it.
-      return Stack(
-        fit: StackFit.expand,
-        children: [
-          content,
-          Column(
+    // EVERY page paints edge to edge and the chrome floats above it — so
+    // dark pages are fully dark to the physical screen edge, and in
+    // autoHide mode a hidden footer leaves no dead band. Body-only pages
+    // own the whole surface (and their own safe insets, like the example's
+    // magazine cover); the built-in structured layout is kept inside
+    // SafeArea, clearing notches before `pagePadding` clears the bars.
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (fullBleed) content else SafeArea(child: content),
+        SafeArea(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _header(),
@@ -1012,19 +1220,7 @@ class _FlipBookScaffold extends StatelessWidget {
               _footer(),
             ],
           ),
-        ],
-      );
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _header(),
-
-        // ── Content ───────────────────────────────────────────────────────────
-        Expanded(child: content),
-
-        // ── Footer ────────────────────────────────────────────────────────────
-        _footer(),
+        ),
       ],
     );
   }
@@ -1039,89 +1235,229 @@ class _FlipBookScaffold extends StatelessWidget {
     );
   }
 
+  /// The read-aloud progress strip: an optional app-fed timing label over a
+  /// thin track, above the footer buttons — like a regular audio player.
+  /// The app feeds both values (see [FlipBook.readAloudProgress]); this
+  /// only renders them. Decorative, so it stays out of semantics.
+  Widget _readProgressStrip() {
+    return ExcludeSemantics(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (readProgressLabel != null)
+              Padding(
+                padding: const EdgeInsetsDirectional.only(bottom: 6),
+                child: Text(
+                  readProgressLabel!,
+                  style: theme.readAloudProgressLabelStyle,
+                  textAlign: TextAlign.start,
+                ),
+              ),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(2),
+              child: SizedBox(
+                height: 3,
+                child: ColoredBox(
+                  color: theme.readAloudProgressTrackColor,
+                  child: FractionallySizedBox(
+                    alignment: AlignmentDirectional.centerStart,
+                    widthFactor: readProgress,
+                    child: ColoredBox(color: theme.readAloudProgressColor),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _footer() {
-    return Padding(
+    final body = Padding(
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 28),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Left group: INDEX · mute. The icon buttons carry their own
-          // padding as tap area, so the visible gap stays small while the
-          // touch targets do not overlap the INDEX button.
-          if (hasIndex && onToggleIndex != null)
-            _FooterButton(
-              label: strings.index,
-              style: theme.indexButtonStyle,
-              onTap: onToggleIndex!,
-            ),
-          if (hasIndex && onToggleIndex != null && onMuteToggle != null)
-            const SizedBox(width: 4),
-          if (onMuteToggle != null)
-            _FooterIconButton(
-              icon: isMuted ? icons.volumeOff : icons.volumeOn,
-              label: isMuted ? strings.unmute : strings.mute,
-              color: theme.muteIconColor,
-              onTap: onMuteToggle!,
-            ),
-
-          const Spacer(),
-
-          // Centre: optional "3 / 12" indicator, then the read-aloud
-          // control. Idle → play. Playing → pause (when supported) +
-          // stop. Paused → play + stop.
-          if (pageNumber != null) ...[
-            Text(pageNumber!, style: theme.pageNumberStyle),
-            if (onReadPlay == null) const Spacer(),
-          ],
-          if (pageNumber != null && onReadPlay != null)
-            const SizedBox(width: 10),
-          if (onReadPlay != null) ...[
-            if (readPhase != _ReadPhase.playing)
-              _FooterIconButton(
-                icon: icons.play,
-                label: strings.readAloud,
-                color: theme.muteIconColor,
-                onTap: onReadPlay!,
-              ),
-            if (readPhase == _ReadPhase.playing && canPauseReading)
-              _FooterIconButton(
-                icon: icons.pause,
-                label: strings.pauseReading,
-                color: theme.muteIconColor,
-                onTap: onReadPause!,
-              ),
-            if (readPhase != _ReadPhase.idle)
-              _FooterIconButton(
-                icon: icons.stop,
-                label: strings.stopReading,
-                color: theme.muteIconColor,
-                onTap: onReadStop!,
-              ),
-            const Spacer(),
-          ],
-
-          // Right group (mirrored to the left under RTL): PREV · NEXT
-          if (onPrev != null)
-            _NavButton(
-              label: strings.previous,
-              style: theme.navButtonStyle,
-              icon: icons.previous,
-              iconColor: theme.navButtonIconColor,
-              isNext: false,
-              onTap: onPrev!,
-            ),
-          if (onPrev != null && onNext != null) const SizedBox(width: 16),
-          if (onNext != null)
-            _NavButton(
-              label: strings.next,
-              style: theme.navButtonStyle,
-              icon: icons.next,
-              iconColor: theme.navButtonIconColor,
-              isNext: true,
-              onTap: onNext!,
-            ),
+          if (readProgress != null && readPhase != _ReadPhase.idle)
+            _readProgressStrip(),
+          _footerButtons(),
         ],
       ),
+    );
+    // Chrome auto-hide: fade + slight sink while hidden, untappable, and
+    // out of the semantics tree — a screen reader must not focus invisible
+    // buttons. Interactions inside the visible footer restart the clock.
+    return Listener(
+      onPointerDown:
+          onFooterInteraction == null ? null : (_) => onFooterInteraction!(),
+      child: IgnorePointer(
+        ignoring: !chromeVisible,
+        child: ExcludeSemantics(
+          excluding: !chromeVisible,
+          child: AnimatedOpacity(
+            opacity: chromeVisible ? 1 : 0,
+            duration: const Duration(milliseconds: 220),
+            child: AnimatedSlide(
+              offset: chromeVisible ? Offset.zero : const Offset(0, 0.25),
+              duration: const Duration(milliseconds: 220),
+              child: body,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The footer is three flexible zones — left, centre, right — and each
+  /// zone scales its own contents down (FittedBox) when the screen is
+  /// narrow or the font scale is large, so no button is ever clipped.
+  Widget _footerButtons() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          flex: 2,
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                // Left group: INDEX · mute. The icon buttons carry their
+                // own padding as tap area, so the visible gap stays small
+                // while the touch targets do not overlap.
+                children: [
+                  if (hasIndex && onToggleIndex != null)
+                    _FooterButton(
+                      label: strings.index,
+                      style: theme.indexButtonStyle,
+                      onTap: onToggleIndex!,
+                    ),
+                  if (hasIndex && onToggleIndex != null && onMuteToggle != null)
+                    const SizedBox(width: 4),
+                  if (onMuteToggle != null)
+                    _FooterIconButton(
+                      icon: isMuted ? icons.volumeOff : icons.volumeOn,
+                      label: isMuted ? strings.unmute : strings.mute,
+                      color: theme.muteIconColor,
+                      size: icons.size,
+                      onTap: onMuteToggle!,
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          flex: 3,
+          child: Center(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                // Centre: optional "3 / 12" indicator, then the voice
+                // buttons — plain text, because a word explains itself on
+                // every platform where a tooltip cannot. Idle → PLAY
+                // (+ PLAY ALL). Playing → PAUSE (when supported) + STOP.
+                // Paused → RESUME + STOP. Content replaceable through
+                // FlipBookVoiceChips.
+                children: [
+                  if (pageNumber != null) ...[
+                    Text(pageNumber!, style: theme.pageNumberStyle),
+                    if (onReadPlay != null) const SizedBox(width: 10),
+                  ],
+                  if (onReadPlay != null) ...[
+                    if (readPhase == _ReadPhase.idle) ...[
+                      _VoiceChip(
+                        semanticLabel: strings.readAloud,
+                        onTap: onReadPlay!,
+                        child: voiceChips.play ??
+                            Text(strings.play, style: theme.voiceChipStyle),
+                      ),
+                      // Play-all sits beside PLAY while idle: the reader
+                      // chooses per tap — this page, or the whole book.
+                      if (onReadPlayAll != null) ...[
+                        const SizedBox(width: 6),
+                        _VoiceChip(
+                          semanticLabel: strings.readAllAloud,
+                          onTap: onReadPlayAll!,
+                          child: voiceChips.playAll ??
+                              Text(strings.playAll,
+                                  style: theme.voiceChipStyle),
+                        ),
+                      ],
+                    ],
+                    if (readPhase == _ReadPhase.paused)
+                      _VoiceChip(
+                        semanticLabel: strings.readAloud,
+                        onTap: onReadPlay!,
+                        child: voiceChips.resume ??
+                            Text(strings.resume, style: theme.voiceChipStyle),
+                      ),
+                    if (readPhase == _ReadPhase.playing && canPauseReading)
+                      _VoiceChip(
+                        semanticLabel: strings.pauseReading,
+                        onTap: onReadPause!,
+                        child: voiceChips.pause ??
+                            Text(strings.pause, style: theme.voiceChipStyle),
+                      ),
+                    if (readPhase != _ReadPhase.idle) ...[
+                      const SizedBox(width: 6),
+                      _VoiceChip(
+                        semanticLabel: strings.stopReading,
+                        onTap: onReadStop!,
+                        child: voiceChips.stop ??
+                            Text(strings.stop, style: theme.voiceChipStyle),
+                      ),
+                    ],
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          flex: 2,
+          child: Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                // Right group (mirrored to the left under RTL): PREV · NEXT
+                children: [
+                  if (onPrev != null)
+                    _NavButton(
+                      label: strings.previous,
+                      style: theme.navButtonStyle,
+                      icon: icons.previous,
+                      iconColor: theme.navButtonIconColor,
+                      iconSize: icons.size,
+                      isNext: false,
+                      onTap: onPrev!,
+                    ),
+                  if (onPrev != null && onNext != null)
+                    const SizedBox(width: 16),
+                  if (onNext != null)
+                    _NavButton(
+                      label: strings.next,
+                      style: theme.navButtonStyle,
+                      icon: icons.next,
+                      iconColor: theme.navButtonIconColor,
+                      iconSize: icons.size,
+                      isNext: true,
+                      onTap: onNext!,
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1170,17 +1506,51 @@ class _FlipBookHeader extends StatelessWidget {
 /// A small footer icon with a generous tap area: the 16 px glyph sits inside
 /// symmetric padding and an opaque hit box, so fingers land reliably without
 /// the icons drifting visually apart.
+/// A voice control: a plain text button (any widget via
+/// `FlipBookVoiceChips`) styled like the other footer buttons. The padding
+/// is invisible tap area, keeping the touch target comfortable.
+class _VoiceChip extends StatelessWidget {
+  const _VoiceChip({
+    required this.child,
+    required this.semanticLabel,
+    required this.onTap,
+  });
+
+  final Widget child;
+  final String semanticLabel;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: semanticLabel,
+      excludeSemantics: true,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
 class _FooterIconButton extends StatelessWidget {
   const _FooterIconButton({
     required this.icon,
     required this.label,
     required this.color,
+    required this.size,
     required this.onTap,
   });
 
   final IconData icon;
   final String label;
   final Color color;
+  final double size;
   final VoidCallback onTap;
 
   @override
@@ -1194,7 +1564,7 @@ class _FooterIconButton extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
-          child: Icon(icon, size: 16, color: color),
+          child: Icon(icon, size: size, color: color),
         ),
       ),
     );
@@ -1250,6 +1620,7 @@ class _NavButton extends StatelessWidget {
     required this.style,
     required this.icon,
     required this.iconColor,
+    required this.iconSize,
     required this.isNext,
     required this.onTap,
   });
@@ -1258,13 +1629,14 @@ class _NavButton extends StatelessWidget {
   final TextStyle style;
   final IconData icon;
   final Color iconColor;
+  final double iconSize;
   final bool isNext;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final isRtl = Directionality.of(context) == TextDirection.rtl;
-    Widget iconWidget = Icon(icon, size: 16, color: iconColor);
+    Widget iconWidget = Icon(icon, size: iconSize, color: iconColor);
     if (isRtl) {
       // Mirror the glyph so any custom arrow points with the page travel.
       iconWidget = Transform.flip(flipX: true, child: iconWidget);

@@ -1,8 +1,11 @@
+import 'dart:async' show unawaited;
+
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:page_curl_flip/page_curl_flip.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 void main() => runApp(const ExampleApp());
 
@@ -128,6 +131,25 @@ class _LtrBookState extends State<LtrBook> {
   final _reader = _Reader();
   final _sound = _FlipSound();
 
+  /// Feeds the book's opt-in player strip from the reader's events.
+  double _readProgress = 0;
+  String _readElapsed = '0:00';
+
+  @override
+  void initState() {
+    super.initState();
+    _reader.onProgress = (p) {
+      if (mounted) {
+        setState(() => _readProgress = p);
+      }
+    };
+    _reader.onElapsed = (t) {
+      if (mounted) {
+        setState(() => _readElapsed = t);
+      }
+    };
+  }
+
   // Each page is one self-contained block: title (for the INDEX), an
   // optional tagline, the speech text, and any widget as the body.
   static const _pages = <FlipBookPage>[
@@ -181,6 +203,10 @@ class _LtrBookState extends State<LtrBook> {
     return FlipBook(
       // Direction is forced, so the book looks the same on every device.
       textDirection: TextDirection.ltr,
+      // Immersive: the book opens as a pure page — tap it and the whole
+      // reader chrome reveals itself, then fades away again. Optional;
+      // the default keeps the footer always visible.
+      chrome: FlipBookChrome.autoHide,
       // Everything below is decoration — swap any value for your own.
       theme: _bookTheme,
       icons: _bookIcons,
@@ -197,6 +223,15 @@ class _LtrBookState extends State<LtrBook> {
       onSwipeHintRetired: () => _SwipeMemory.learned = true,
       // The flip sound comes from THIS app; the package ships no audio.
       onPageFlip: _sound.play,
+      // Play-all: one ▶ reads the whole book — the package flips and
+      // chains through the same callbacks. Optional, like everything.
+      readAloudAdvances: true,
+      // Player strip: the package draws the bar and the timing label, the
+      // app feeds both — the package makes no sound, so it cannot know
+      // position or time itself.
+      showReadAloudProgress: true,
+      readAloudProgress: _readProgress,
+      readAloudProgressLabel: _readElapsed,
       // The voice reads what each page shows, via the device's TTS engine.
       onReadAloud: (page) => _reader.read(_pages[page].speechText(), 'en-US'),
       onReadAloudStop: _reader.stop,
@@ -220,6 +255,26 @@ class RtlBook extends StatefulWidget {
 class _RtlBookState extends State<RtlBook> {
   final _reader = _Reader();
   final _sound = _FlipSound();
+
+  /// Same player-strip feed as the LTR book — bar and label mirror with
+  /// the book's direction.
+  double _readProgress = 0;
+  String _readElapsed = '0:00';
+
+  @override
+  void initState() {
+    super.initState();
+    _reader.onProgress = (p) {
+      if (mounted) {
+        setState(() => _readProgress = p);
+      }
+    };
+    _reader.onElapsed = (t) {
+      if (mounted) {
+        setState(() => _readElapsed = t);
+      }
+    };
+  }
 
   /// The voice-setup steps, in Arabic first with a short English footnote.
   static const _settingsBody =
@@ -354,10 +409,19 @@ class _RtlBookState extends State<RtlBook> {
         mute: 'كتم صوت الصفحات',
         unmute: 'تشغيل صوت الصفحات',
         readAloud: 'اقرأ هذه الصفحة بصوت عالٍ',
+        readAllAloud: 'اقرأ الكتاب كاملاً بصوت عالٍ',
         pauseReading: 'إيقاف مؤقت',
         stopReading: 'إيقاف القراءة',
+        // The playback terms Arabic media apps actually use — not literal
+        // translations: تشغيل (play), استئناف (resume-playback).
+        play: 'تشغيل',
+        playAll: 'تشغيل الكل',
+        pause: 'إيقاف مؤقت',
+        resume: 'استئناف',
+        stop: 'إيقاف',
         swipeHint: 'اسحب لقلب الصفحة',
       ),
+      chrome: FlipBookChrome.autoHide,
       theme: _bookTheme,
       icons: _bookIcons,
       pageColor: const Color(0xFFFBFAF6),
@@ -367,6 +431,10 @@ class _RtlBookState extends State<RtlBook> {
       showSwipeHint: !_SwipeMemory.learned,
       onSwipeHintRetired: () => _SwipeMemory.learned = true,
       onPageFlip: _sound.play,
+      readAloudAdvances: true,
+      showReadAloudProgress: true,
+      readAloudProgress: _readProgress,
+      readAloudProgressLabel: _readElapsed,
       onReadAloud: _readAloud,
       onReadAloudStop: _reader.stop,
       onReadAloudPause: _reader.pause,
@@ -388,6 +456,23 @@ final _bookTheme = const FlipBookTheme().copyWith(
   navButtonIconColor: _ink,
   muteIconColor: _ink,
   tocItemCurrentIconColor: _ink,
+  // Voice buttons dress like the other footer text buttons.
+  voiceChipStyle: const TextStyle(
+    fontSize: 11,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 1.4,
+    color: _ink,
+  ),
+  // The strip floats over every page — including the black magazine
+  // cover — so the bar picks colours that read on light AND dark paper.
+  readAloudProgressColor: const Color(0xFFD32F2F),
+  readAloudProgressTrackColor: const Color(0x338A8A8A),
+  readAloudProgressLabelStyle: const TextStyle(
+    fontSize: 11,
+    fontWeight: FontWeight.w600,
+    letterSpacing: 1.2,
+    color: Color(0xFF8A8A8A),
+  ),
   navButtonStyle: const TextStyle(
     fontSize: 11,
     fontWeight: FontWeight.w700,
@@ -421,9 +506,6 @@ final _bookTheme = const FlipBookTheme().copyWith(
 const _bookIcons = FlipBookIcons(
   next: Icons.arrow_forward_ios,
   previous: Icons.arrow_back_ios_new,
-  play: Icons.play_circle_outline,
-  pause: Icons.pause_circle_outline,
-  stop: Icons.stop_circle_outlined,
   volumeOn: Icons.music_note,
   volumeOff: Icons.music_off,
 );
@@ -882,6 +964,15 @@ class _FlipSound with WidgetsBindingObserver {
   Future<void>? _ready;
 
   Future<void> _prime() => _ready ??= () async {
+    // Android: the silent/vibrate gate lives on the PLAYER's audio
+    // attributes (respectSilence → ringtone usage), not on the global
+    // context — set it once here. iOS is handled by the global session
+    // assert in play() below.
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      await _player.setAudioContext(
+        AudioContextConfig(respectSilence: true).build(),
+      );
+    }
     await _player.setReleaseMode(ReleaseMode.stop);
     await _player.setSource(AssetSource('sounds/page_flip.m4a'));
   }();
@@ -941,6 +1032,23 @@ class _Reader with WidgetsBindingObserver {
   int _position = 0;
   int _base = 0;
 
+  /// Feeds the book's opt-in player strip: progress 0.0–1.0 from the word
+  /// boundaries the engine already emits, and elapsed time from a stopwatch
+  /// (speech engines report no duration — elapsed is what is knowable).
+  ValueChanged<double>? onProgress;
+  ValueChanged<String>? onElapsed;
+  final _elapsed = Stopwatch();
+
+  /// The engine's speak future also completes when pause/stop kill it —
+  /// only the session that finishes NATURALLY may report "done" (1.0),
+  /// otherwise the bar would jump to full on every pause.
+  int _session = 0;
+
+  String get _elapsedLabel {
+    final s = _elapsed.elapsed.inSeconds;
+    return '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
+  }
+
   Future<void> _configure() async {
     if (_configured) {
       return;
@@ -949,6 +1057,13 @@ class _Reader with WidgetsBindingObserver {
     // Remember how far the voice has come, for pause/resume.
     _tts.setProgressHandler((text, start, end, word) {
       _position = _base + start;
+      // Re-assert the screen wakelock on every word — self-healing if a
+      // platform quietly dropped it (seen on iOS mid-play-all).
+      _screenAwake(true);
+      if (_text.isNotEmpty) {
+        onProgress?.call(_position / _text.length);
+        onElapsed?.call(_elapsedLabel);
+      }
     });
     _configured = true;
   }
@@ -971,30 +1086,70 @@ class _Reader with WidgetsBindingObserver {
     ]);
   }
 
+  /// Best-effort screen wakelock: a long listen (play-all) must not die to
+  /// the screen timeout — reading stops on background by design, so the
+  /// screen staying on is what keeps the voice alive. Failures are
+  /// swallowed; the lock must never break reading.
+  void _screenAwake(bool on) {
+    unawaited(
+      (on ? WakelockPlus.enable() : WakelockPlus.disable()).catchError((_) {}),
+    );
+  }
+
   Future<void> read(String text, String language) async {
     await _configure();
     await _assertAudioCategory();
     await _tts.stop();
+    final session = ++_session;
     _text = text;
     _language = language;
     _base = 0;
     _position = 0;
+    _elapsed
+      ..reset()
+      ..start();
+    _screenAwake(true);
+    onProgress?.call(0);
+    onElapsed?.call(_elapsedLabel);
     await _tts.setLanguage(language);
     await _tts.speak(text);
+    if (session == _session) {
+      _elapsed.stop();
+      _screenAwake(false);
+      onProgress?.call(1);
+    }
   }
 
   /// Android's engine has no native pause — stopping while remembering the
   /// word works on every platform.
-  Future<void> pause() => _tts.stop();
+  Future<void> pause() {
+    _session++; // The dying speak future must not report "done".
+    _elapsed.stop();
+    _screenAwake(false);
+    return _tts.stop();
+  }
 
   Future<void> resume() async {
     await _assertAudioCategory();
+    final session = ++_session;
+    _elapsed.start();
+    _screenAwake(true);
     _base = _position;
     await _tts.setLanguage(_language);
     await _tts.speak(_text.substring(_position.clamp(0, _text.length)));
+    if (session == _session) {
+      _elapsed.stop();
+      _screenAwake(false);
+      onProgress?.call(1);
+    }
   }
 
-  Future<void> stop() => _tts.stop();
+  Future<void> stop() {
+    _session++;
+    _elapsed.stop();
+    _screenAwake(false);
+    return _tts.stop();
+  }
 
   /// Android keeps the TTS engine speaking after the app is backgrounded
   /// (iOS suspends it with the app). A book has no business reading to a
@@ -1004,12 +1159,14 @@ class _Reader with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) {
-      _tts.stop();
+      stop(); // Bumps the session too — no stale "done" reports.
     }
   }
 
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _session++;
+    _screenAwake(false);
     _tts.stop();
   }
 }

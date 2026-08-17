@@ -127,15 +127,16 @@ FlipBook(
   icons: const FlipBookIcons(
     next: Icons.arrow_forward_ios,
     previous: Icons.arrow_back_ios_new,
-    play: Icons.play_circle_outline,
+    volumeOn: Icons.music_note,
   ),
   ...
 )
 ```
 
-Close, chevrons, speaker pair, play/pause/stop, search, bookmark — all
-overridable. Direction arrows are mirrored automatically under RTL, whatever
-icon you chose.
+Close, chevrons, speaker pair, search, bookmark — all overridable, plus a
+shared `size` for the footer icons. Direction arrows are mirrored
+automatically under RTL, whatever icon you chose. (The voice controls are
+text buttons — see Read aloud — customized through `FlipBookVoiceChips`.)
 
 ### Read aloud
 
@@ -160,10 +161,82 @@ Give each `FlipBookPage` a `bodyText` (the plain-text of its widget body) and
 Idle shows a single ▶ play button. While reading it becomes ⏸ pause + ⏹ stop
 (pause only when you provide the pause/resume pair); paused shows ▶ + ⏹, and
 play continues from where it paused. Stop always resets to the beginning, and
-flipping or jumping away stops the reading automatically. See
-`example/lib/main.dart` for a complete `flutter_tts` wiring — including
-resume-by-word-position (Android's engine has no native pause) and detecting
-a missing language voice.
+flipping or jumping away stops the reading automatically.
+
+The voice controls are **text chips** — PLAY, PLAY ALL, PAUSE, RESUME,
+STOP in small rounded containers — because a word explains itself on every
+platform where a tooltip cannot. Every label localizes through
+`FlipBookStrings`, the pill styles through
+`FlipBookTheme.voiceChipStyle` / `voiceChipFillColor`, and any chip's
+content can be replaced with any widget (an icon, an image…) while the
+container, tap handling, and screen-reader labels stay the package's:
+
+```dart
+FlipBook(
+  voiceChips: const FlipBookVoiceChips(
+    play: Icon(Icons.play_arrow, size: 16), // this chip becomes an icon
+  ),
+  ...
+)
+```
+
+**Play the whole book** — opt in and a PLAY ALL chip appears beside PLAY:
+it reads page after page like an audiobook, flipping by itself through the
+same callbacks you already provide. PLAY still reads only the shown page —
+the reader chooses per tap. STOP ends the chain, PAUSE holds it (RESUME
+continues), and a manual flip, a jump, or the app going to background stops
+everything:
+
+```dart
+FlipBook(readAloudAdvances: true, ...) // default false
+```
+
+Play-all reads **while the app is in the foreground** — leaving it stops
+the voice and the chain (true background audio needs app-level platform
+setup: the iOS `audio` background mode, an Android foreground service).
+The example keeps the screen awake while the voice reads
+(`wakelock_plus`), so a long listen does not die to the screen timeout.
+
+**Player strip** — opt in and a thin progress bar (plus an optional timing
+label) appears above the footer while reading. The package makes no sound,
+so your app feeds both values; speech engines report no total duration, so
+the label is free-form — the example shows elapsed time:
+
+```dart
+FlipBook(
+  showReadAloudProgress: true,        // default false
+  readAloudProgress: _progress,       // 0.0–1.0, from your engine's events
+  readAloudProgressLabel: _elapsed,   // any text, e.g. "0:07" — null hides it
+  ...
+)
+```
+
+Style it with `FlipBookTheme.readAloudProgressColor`,
+`readAloudProgressTrackColor`, and `readAloudProgressLabelStyle`; the bar
+fills in reading direction (RTL-aware). See `example/lib/main.dart` for a
+complete `flutter_tts` wiring — including resume-by-word-position (Android's
+engine has no native pause), the progress/elapsed feed from word-boundary
+events, and detecting a missing language voice.
+
+### Immersive reading (auto-hiding chrome)
+
+Open the book as a pure page — no buttons, just paper. A tap on the page
+reveals the footer (INDEX, voice, PREV/NEXT…), which fades away again after
+a few quiet seconds. On mouse platforms, hovering over the bottom reveals it
+too. The × close button stays visible in every mode, so the reader always
+has a way out:
+
+```dart
+FlipBook(
+  chrome: FlipBookChrome.autoHide,        // default: FlipBookChrome.always
+  chromeRevealFor: Duration(seconds: 3),  // how long a reveal lasts
+  ...
+)
+```
+
+Swiping keeps working while the chrome is hidden — gesture-only reading —
+and the swipe hint still greets, since it lives on the page, not in the
+chrome.
 
 ### Your own buttons, anywhere
 

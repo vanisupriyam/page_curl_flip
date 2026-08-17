@@ -39,6 +39,10 @@ dependencies:
   # the device's own text-to-speech engine. The package itself does not
   # depend on this; any TTS service can be plugged into the callback.
   flutter_tts: ^4.0.2
+  # Example-only: keeps the screen awake while the voice reads, so a long
+  # listen (play-all) does not die to the screen timeout. Reading stops on
+  # background by design — the app must stay in the foreground.
+  wakelock_plus: ^1.2.0
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
