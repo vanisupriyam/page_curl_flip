@@ -151,6 +151,7 @@ class FlipBook extends StatefulWidget {
     this.swipeHintDelay = const Duration(seconds: 20),
     this.swipeHintDuration = const Duration(seconds: 3),
     this.swipeHintMaxSwipes = 3,
+    this.onSwipeHintRetired,
     this.controller,
     this.initialPage = 0,
     this.onPageChanged,
@@ -232,6 +233,13 @@ class FlipBook extends StatefulWidget {
   /// How many swipes until the hint considers the gesture learned and stops
   /// appearing for the rest of the book's life.
   final int swipeHintMaxSwipes;
+
+  /// Fires exactly once, the moment the reader's page-turning swipes reach
+  /// [swipeHintMaxSwipes] and the hint retires. The package keeps no state
+  /// between opens — persist this signal in your app and pass
+  /// [showSwipeHint] = `false` the next time the book opens, so a reader
+  /// who has already learned the gesture is not greeted again.
+  final VoidCallback? onSwipeHintRetired;
 
   /// Drives the book from outside the widget — see [FlipBookController].
   final FlipBookController? controller;
@@ -373,6 +381,11 @@ class _FlipBookState extends State<FlipBook>
   /// that the gesture counts as learned and the cycle never returns.
   void _countSwipeForHint() {
     _swipeHintSwipeCount++;
+    // The == comparison fires the signal exactly once: the count only ever
+    // grows, and only here.
+    if (_swipeHintSwipeCount == widget.swipeHintMaxSwipes) {
+      widget.onSwipeHintRetired?.call();
+    }
     _swipeHintTimer?.cancel();
     if (_swipeHintVisible) {
       setState(() => _swipeHintVisible = false);

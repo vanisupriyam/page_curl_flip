@@ -12,6 +12,7 @@ cd "$(dirname "$0")/.."
 ids=(
   NAV-05
   TTS-13
+  SWP-10
   EDG-01 EDG-02 EDG-03 EDG-04 EDG-05 EDG-06 EDG-07 EDG-08
   ACC-01
   LAY-06

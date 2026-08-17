@@ -265,6 +265,40 @@ void main() {
       expect(hint, findsNothing, reason: 'and the cycle never returns');
     });
 
+    testWidgets(
+        'SWP-10: onSwipeHintRetired fires exactly once when the gesture '
+        'is learned', (tester) async {
+      var retired = 0;
+      await tester.pumpWidget(MaterialApp(
+        home: FlipBook(
+          onClose: () {},
+          swipeHintMaxSwipes: 2,
+          onSwipeHintRetired: () => retired++,
+          pages: const [
+            FlipBookPage(title: 'One', body: Text('page one')),
+            FlipBookPage(title: 'Two', body: Text('page two')),
+            FlipBookPage(title: 'Three', body: Text('page three')),
+          ],
+        ),
+      ));
+      // Swipe 1 of 2 — not learned yet.
+      await tester.fling(find.text('page one'), const Offset(-220, 0), 900);
+      await _finishFlip(tester);
+      expect(retired, 0, reason: 'one swipe is below the limit');
+
+      // Swipe 2 of 2 — the limit is reached, the signal fires.
+      await tester.fling(find.text('page two'), const Offset(-220, 0), 900);
+      await tester.pump();
+      await _finishFlip(tester);
+      expect(retired, 1, reason: 'the retirement signal fires at the limit');
+
+      // A third page-turning swipe must not fire it again.
+      await tester.fling(find.text('page three'), const Offset(220, 0), 900);
+      await tester.pump();
+      await _finishFlip(tester);
+      expect(retired, 1, reason: 'the signal fires exactly once');
+    });
+
     testWidgets('disposing mid-flip does not throw', (tester) async {
       await tester.pumpWidget(_app());
       await tester.tap(find.text('NEXT'));

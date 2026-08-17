@@ -79,9 +79,16 @@ FlipBook(
   swipeHintDelay: Duration(seconds: 20),   // how often it returns
   swipeHintDuration: Duration(seconds: 3), // how long it stays visible
   swipeHintMaxSwipes: 3,                   // swipes until "learned"
+  onSwipeHintRetired: () => prefs.setBool('swipeLearned', true),
   ...
 )
 ```
+
+"Retires forever" means the life of the book: the package persists nothing,
+so a reopened book greets again. To keep a learned reader from being
+re-greeted, persist the `onSwipeHintRetired` signal (it fires exactly once,
+at the moment of retirement) and pass
+`showSwipeHint: !(prefs.getBool('swipeLearned') ?? false)` on the next open.
 
 Hint text: `FlipBookStrings.swipeHint` · colour, size, font:
 `FlipBookTheme.swipeHintStyle` · chevron size:
@@ -252,16 +259,17 @@ same rasterizer produces and checks them. If you regenerate goldens
 (`flutter test --update-goldens test/goldens_test.dart`), do it on macOS —
 baselines rendered on Linux or Windows will fail CI.
 
-The built-in sound uses the `audioplayers` plugin — the package's only
-dependency. Plugins have no implementation inside `flutter test`, so widget
-tests that flip pages should pass `enableSound: false` (or provide their own
-`onPageFlip`). Sound failures at runtime are swallowed by design: audio can
-never break the animation.
+The package has **zero dependencies** and makes no sound of its own — flip
+sound and speech run through your callbacks. In widget tests either pass
+`enableSound: false` or provide a no-op `onPageFlip`; the callbacks are
+fire-and-forget by design, so an audio failure in your app can never break
+the animation.
 
 ## How it works
 
 On each flip the current page is captured as a bitmap at the device's pixel
-ratio, then drawn as 28 vertical slices projected onto a cylinder whose radius
+ratio (capped at 2× — a moving curl cannot show more detail, and the cap
+halves the bitmap memory), then drawn as 28 vertical slices projected onto a cylinder whose radius
 shrinks and grows with `progress`. Slices are depth-sorted, shaded by their
 angle to the light, and given a moving specular glint — which is what makes
 the paper read as physically curling rather than just rotating.
