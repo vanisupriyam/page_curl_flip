@@ -32,6 +32,7 @@ class FlipBookHeader {
   /// Fades the header away until the reader taps the page, like the footer.
   /// Off by default: the way out stays in reach unless you decide otherwise.
   final bool autoHide;
+
   /// This object with some fields replaced.
   ///
   /// A null argument means "leave it alone", so a field that is already

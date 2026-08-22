@@ -46,6 +46,7 @@ class FlipBookPageStyle {
   /// floating chrome, so the default clears the header at the top and the
   /// footer at the bottom; shrink it if your book hides its chrome.
   final EdgeInsetsGeometry padding;
+
   /// This object with some fields replaced.
   ///
   /// A null argument means "leave it alone", so a field that is already

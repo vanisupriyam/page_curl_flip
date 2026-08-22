@@ -1032,9 +1032,8 @@ class _FlipBookState extends State<FlipBook>
     // cannot put its child outside that box, so the clamping is structural
     // rather than arithmetic, and it works the same in both directions.
     final width = _draftBlockWidth;
-    final fx = width <= 0
-        ? 0.0
-        : ((rect.center.dx / width) * 2 - 1).clamp(-1.0, 1.0);
+    final fx =
+        width <= 0 ? 0.0 : ((rect.center.dx / width) * 2 - 1).clamp(-1.0, 1.0);
 
     return CompositedTransformFollower(
       link: _draftLink,
@@ -1173,14 +1172,12 @@ class _FlipBookState extends State<FlipBook>
     }
     // Mid-flip the trash must already speak for the page ARRIVING, since
     // _pageIndex only moves once the flip finishes.
-    final index =
-        _flipPhase == _FlipPhase.idle ? _pageIndex : _nextIndex;
+    final index = _flipPhase == _FlipPhase.idle ? _pageIndex : _nextIndex;
     final id = widget.pages.items[index].id;
     if (id == null || id.isEmpty) {
       return false;
     }
-    return (_marker?.marks ?? const <ReaderMark>[])
-        .any((m) => m.pageId == id);
+    return (_marker?.marks ?? const <ReaderMark>[]).any((m) => m.pageId == id);
   }
 
   /// Clears the marks on the page being shown — and only those.

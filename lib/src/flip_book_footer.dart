@@ -87,6 +87,7 @@ class FlipBookFooter {
   /// The flip sound and its mute button; `null` means a silent book with no
   /// speaker.
   final FlipBookSound? sound;
+
   /// This object with some fields replaced.
   ///
   /// A null argument means "leave it alone", so a field that is already

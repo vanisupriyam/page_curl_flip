@@ -50,7 +50,8 @@ class _LtrBookState extends State<LtrBook> {
       bodySegments: kPage1,
       bodyWidgets: {
         2: const CircleCut(
-          caption: 'The same build runs on both platforms. Only the voice and '
+          caption:
+              'The same build runs on both platforms. Only the voice and '
               'the system fonts differ, and both are the app\'s choice.',
         ),
         4: const PullQuote(text: kQuote1),
@@ -68,7 +69,8 @@ class _LtrBookState extends State<LtrBook> {
         5: const CircleCut(
           doodle: Doodle.android,
           logoOnEnd: false,
-          caption: 'The package makes no sound of its own. It owns the '
+          caption:
+              'The package makes no sound of its own. It owns the '
               'control, the state and the label, and hands the choice to you.',
         ),
       },
@@ -83,7 +85,8 @@ class _LtrBookState extends State<LtrBook> {
       bodyWidgets: {
         2: const CircleCut(
           doodle: Doodle.apple,
-          caption: 'Marks, bookmarks and kept pages all leave through '
+          caption:
+              'Marks, bookmarks and kept pages all leave through '
               'callbacks and come back through fields. Hive, SQLite, a file, '
               'a server — the choice was never the book\'s to make.',
         ),
@@ -200,7 +203,10 @@ class _LtrBookState extends State<LtrBook> {
         // resuming IS playing. Play-all is the playlist glyph — a play mark
         // against a stack of lines, which is exactly what it does.
         play: const Icon(Icons.play_arrow_rounded, color: kOnColour),
-        playAllControl: const Icon(Icons.playlist_play_rounded, color: kOnColour),
+        playAllControl: const Icon(
+          Icons.playlist_play_rounded,
+          color: kOnColour,
+        ),
         pause: const Icon(Icons.pause_rounded, color: kOnColour),
         resume: const Icon(Icons.play_arrow_rounded, color: kOnColour),
         stop: const Icon(Icons.stop_rounded, color: kOnColour),

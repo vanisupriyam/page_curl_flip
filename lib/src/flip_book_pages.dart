@@ -62,6 +62,7 @@ class FlipBookPages {
 
   /// Shows a small "3 / 12" position indicator in the footer.
   final bool showNumber;
+
   /// This object with some fields replaced.
   ///
   /// A null argument means "leave it alone", so a field that is already
