@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1
+
+- `PageCurlRoute`'s RTL mirror now builds its flip with
+  `Matrix4.diagonal3Values(-1, 1, 1)` instead of `Matrix4.identity()..scale(...)`.
+  Identical math, no behaviour change — `Matrix4.scale` is deprecated in the
+  `vector_math` that ships with the newest Flutter, and pub.dev's analysis
+  flagged it. Nothing else changed.
+
 ## 0.2.0
 
 **Every feature is now an object you pass, and it exists only if you pass

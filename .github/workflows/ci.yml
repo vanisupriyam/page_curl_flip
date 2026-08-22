@@ -52,3 +52,32 @@ jobs:
 
       - name: Publish dry-run
         run: dart pub publish --dry-run
+
+  analyze-latest:
+    name: analyze on latest stable (what pub.dev scores with)
+    # pub.dev analyses every upload with the NEWEST stable Flutter, not the
+    # pinned one above — a deprecation INFO that 3.32.4 cannot see still
+    # costs 10 score points (0.2.0 lost them on `Matrix4.scale`). This job
+    # runs analysis only, so no goldens and no macOS needed.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Dependencies
+        run: flutter pub get
+
+      - name: Analyze (infos are failures)
+        run: flutter analyze --fatal-infos
+
+      - name: Example dependencies
+        run: flutter pub get
+        working-directory: example
+
+      - name: Example analyze (infos are failures)
+        run: flutter analyze --fatal-infos
+        working-directory: example

@@ -207,7 +207,10 @@ class _PageCurlTransitionState extends State<_PageCurlTransition>
     Widget curl(Widget child) => rtl
         ? Transform(
             alignment: Alignment.center,
-            transform: Matrix4.identity()..scale(-1.0, 1.0, 1.0),
+            // A diagonal matrix, not `identity()..scale(...)`: `Matrix4.scale`
+            // is deprecated in newer vector_math, and the constructor is the
+            // same flip on every SDK.
+            transform: Matrix4.diagonal3Values(-1.0, 1.0, 1.0),
             child: child,
           )
         : child;
