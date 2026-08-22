@@ -161,6 +161,7 @@ class FlipBookReadAloud {
 
   /// What a screen reader announces for stop.
   final String stopSemantics;
+
   /// This object with some fields replaced.
   ///
   /// A null argument means "leave it alone", so a field that is already

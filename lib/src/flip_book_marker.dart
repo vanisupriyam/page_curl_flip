@@ -108,6 +108,7 @@ class FlipBookMarker {
 
   /// Colour of the pencil and trash icons; null uses the footer's.
   final Color? iconColor;
+
   /// This object with some fields replaced.
   ///
   /// A null argument means "leave it alone", so a field that is already

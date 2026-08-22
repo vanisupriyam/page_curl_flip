@@ -47,7 +47,6 @@ void main() {
   _copyWithContract();
 
   _perPageStyleContract();
-
 }
 
 void _copyWithContract() {
@@ -93,7 +92,8 @@ void _copyWithContract() {
 
 void _perPageStyleContract() {
   group('FlipBookPage.style — added', () {
-    testWidgets('STY-01: a page style overrides the book style, and only for '
+    testWidgets(
+        'STY-01: a page style overrides the book style, and only for '
         'that page', (tester) async {
       const bookBody = TextStyle(fontSize: 11, color: Color(0xFF111111));
       const pageBody = TextStyle(fontSize: 29, color: Color(0xFF222222));

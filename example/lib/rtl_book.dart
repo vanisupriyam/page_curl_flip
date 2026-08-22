@@ -65,7 +65,8 @@ class _RtlBookState extends State<RtlBook> {
       bodySegments: kPage1Ar,
       bodyWidgets: {
         2: const CircleCut(
-          caption: 'البناء نفسه يعمل على المنصتين. لا يختلف سوى الصوت وخطوط '
+          caption:
+              'البناء نفسه يعمل على المنصتين. لا يختلف سوى الصوت وخطوط '
               'النظام، وكلاهما اختيار التطبيق.',
         ),
         4: const PullQuote(text: kQuote1Ar),
@@ -83,7 +84,8 @@ class _RtlBookState extends State<RtlBook> {
         5: const CircleCut(
           doodle: Doodle.android,
           logoOnEnd: false,
-          caption: 'لا يصدر الكتاب صوتاً بنفسه. يملك الزر والحالة والتسمية، '
+          caption:
+              'لا يصدر الكتاب صوتاً بنفسه. يملك الزر والحالة والتسمية، '
               'ويترك لك الاختيار.',
         ),
       },
@@ -98,7 +100,8 @@ class _RtlBookState extends State<RtlBook> {
       bodyWidgets: {
         2: const CircleCut(
           doodle: Doodle.apple,
-          caption: 'تخرج العلامات والإشارات والصفحات المحفوظة عبر callbacks '
+          caption:
+              'تخرج العلامات والإشارات والصفحات المحفوظة عبر callbacks '
               'وتعود عبر الحقول. المكان اختيارك أنت لا اختيار الكتاب.',
         ),
         4: const PullQuote(text: kQuote3Ar),

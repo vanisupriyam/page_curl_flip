@@ -202,8 +202,8 @@ class _PageCurlTransitionState extends State<_PageCurlTransition>
     // The curl geometry itself only peels one way. Mirroring the whole
     // overlay horizontally is what makes an Arabic screen travel the way its
     // script reads — the same rule FlipBook already follows for its flips.
-    final rtl = widget.mirror ??
-        (Directionality.maybeOf(context) == TextDirection.rtl);
+    final rtl =
+        widget.mirror ?? (Directionality.maybeOf(context) == TextDirection.rtl);
     Widget curl(Widget child) => rtl
         ? Transform(
             alignment: Alignment.center,

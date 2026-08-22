@@ -51,7 +51,8 @@ const kPage1 = <String>[
 
 const kTitle2 = 'A BOOK\nTHAT SPEAKS';
 const kStand2 = 'PAGE CURL FLIP · TWO OF THREE';
-const kQuote2 = 'THE MARK MOVES WHEN THE VOICE FINISHES A SENTENCE, '
+const kQuote2 =
+    'THE MARK MOVES WHEN THE VOICE FINISHES A SENTENCE, '
     'NOT ON A TIMER';
 
 const kPage2 = <String>[
@@ -251,7 +252,6 @@ class MagazinePaper extends StatelessWidget {
   }
 }
 
-
 /// One specular sweep as a page settles, then a resting highlight.
 ///
 /// A single pass, never a loop: paper catches light while it moves and then
@@ -269,8 +269,10 @@ class _SheenState extends State<_Sheen> with SingleTickerProviderStateMixin {
     duration: const Duration(milliseconds: 1100),
   )..forward();
 
-  late final Animation<double> _sweep =
-      CurvedAnimation(parent: _c, curve: Curves.easeOutCubic);
+  late final Animation<double> _sweep = CurvedAnimation(
+    parent: _c,
+    curve: Curves.easeOutCubic,
+  );
 
   @override
   void dispose() {
@@ -280,27 +282,27 @@ class _SheenState extends State<_Sheen> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: _sweep,
-        builder: (context, _) {
-          final t = -1.6 + (_sweep.value * 2.4);
-          return DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment(t - 0.9, -1.2),
-                end: Alignment(t + 0.9, 1.2),
-                stops: const [0.0, 0.42, 0.5, 0.58, 1.0],
-                colors: const [
-                  Color(0x00FFFFFF),
-                  Color(0x24FFFFFF),
-                  Color(0x8AFFFFFF),
-                  Color(0x24FFFFFF),
-                  Color(0x00FFFFFF),
-                ],
-              ),
-            ),
-          );
-        },
+    animation: _sweep,
+    builder: (context, _) {
+      final t = -1.6 + (_sweep.value * 2.4);
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment(t - 0.9, -1.2),
+            end: Alignment(t + 0.9, 1.2),
+            stops: const [0.0, 0.42, 0.5, 0.58, 1.0],
+            colors: const [
+              Color(0x00FFFFFF),
+              Color(0x24FFFFFF),
+              Color(0x8AFFFFFF),
+              Color(0x24FFFFFF),
+              Color(0x00FFFFFF),
+            ],
+          ),
+        ),
       );
+    },
+  );
 }
 
 // ── The type ──────────────────────────────────────────────────────────────
@@ -335,21 +337,21 @@ class PullQuote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 22),
-        child: Container(
-          padding: const EdgeInsets.all(22),
-          color: color,
-          child: Text(
-            text,
-            style: const TextStyle(
-              color: kOnColour,
-              fontSize: 19,
-              height: 1.3,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
+    padding: const EdgeInsets.symmetric(vertical: 22),
+    child: Container(
+      padding: const EdgeInsets.all(22),
+      color: color,
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: kOnColour,
+          fontSize: 19,
+          height: 1.3,
+          fontWeight: FontWeight.w800,
         ),
-      );
+      ),
+    ),
+  );
 }
 
 enum Doodle { flutter, android, apple }
@@ -384,8 +386,11 @@ class CircleCut extends StatelessWidget {
       alignment: Alignment.center,
       child: switch (doodle) {
         Doodle.flutter => const FlutterLogo(size: 52),
-        Doodle.android =>
-          const Icon(Icons.android, size: 52, color: Color(0xFF3DDC84)),
+        Doodle.android => const Icon(
+          Icons.android,
+          size: 52,
+          color: Color(0xFF3DDC84),
+        ),
         Doodle.apple => const Icon(Icons.apple, size: 52, color: kInk),
       },
     );

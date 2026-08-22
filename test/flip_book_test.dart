@@ -1550,14 +1550,14 @@ void main() {
               ? FlipBookMarker(marks: marks, onChanged: onMarksChanged)
               : null,
           pages: FlipBookPages(
-            textDirection: rtl ? TextDirection.rtl : null,
-            items: [
-            FlipBookPage(
-              id: pageId,
-              bodySegments: segments,
-            ),
-            const FlipBookPage(id: 'p2', bodySegments: ['Second page.']),
-          ]),
+              textDirection: rtl ? TextDirection.rtl : null,
+              items: [
+                FlipBookPage(
+                  id: pageId,
+                  bodySegments: segments,
+                ),
+                const FlipBookPage(id: 'p2', bodySegments: ['Second page.']),
+              ]),
         ),
       );
     }
@@ -1885,7 +1885,8 @@ void main() {
 
       final box = tester.getRect(find.text(long));
       // Start on the first line, finish two lines lower.
-      final gesture = await tester.startGesture(Offset(box.left + 10, box.top + 8));
+      final gesture =
+          await tester.startGesture(Offset(box.left + 10, box.top + 8));
       await gesture.moveTo(Offset(box.left + 120, box.top + 8));
       await gesture.moveTo(Offset(box.right - 20, box.top + 60));
       await gesture.up();
@@ -2205,8 +2206,7 @@ void main() {
       expect(trash(), findsNothing);
     });
 
-    testWidgets(
-        'MRK-17: the trash appears only on a page that HAS marks',
+    testWidgets('MRK-17: the trash appears only on a page that HAS marks',
         (tester) async {
       // The trash clears the shown page only, so its visibility must match:
       // a mark on page 3 must not light the trash on page 2 and offer to

@@ -67,9 +67,8 @@ class MarkStore {
     Persist.save();
   }
 
-  static Map<String, Object?> toMap() => _byBook.map(
-    (k, v) => MapEntry(k, v.map((m) => m.toMap()).toList()),
-  );
+  static Map<String, Object?> toMap() =>
+      _byBook.map((k, v) => MapEntry(k, v.map((m) => m.toMap()).toList()));
 
   static void fromMap(Map<String, Object?> m) {
     _byBook.clear();
@@ -100,7 +99,8 @@ class Persist {
       final dir = await getApplicationSupportDirectory();
       _file = File('${dir.path}/page_curl_flip_demo.json');
       if (await _file!.exists()) {
-        final map = jsonDecode(await _file!.readAsString()) as Map<String, Object?>;
+        final map =
+            jsonDecode(await _file!.readAsString()) as Map<String, Object?>;
         SwipeMemory.learned = (map['swipeLearned'] as bool?) ?? false;
         MarkStore.fromMap(
           Map<String, Object?>.from((map['marks'] as Map?) ?? const {}),

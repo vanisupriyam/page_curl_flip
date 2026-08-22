@@ -228,6 +228,7 @@ class FlipBookPage {
     ];
     return parts.join('. ');
   }
+
   /// This object with some fields replaced.
   ///
   /// A null argument means "leave it alone", so a field that is already

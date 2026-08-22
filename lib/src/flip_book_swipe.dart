@@ -18,6 +18,7 @@ class FlipBookSwipe {
 
   /// The transient hint; `null` removes it.
   final FlipBookSwipeHint? hint;
+
   /// This object with some fields replaced.
   ///
   /// A null argument means "leave it alone", so a field that is already

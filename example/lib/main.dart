@@ -62,42 +62,42 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: kStock,
-        body: Stack(
-          children: [
-            const Positioned.fill(child: _Cover()),
-            Positioned.fill(
-              child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(26, 0, 26, 28),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Spacer(),
-                      _Edition(
-                        kicker: 'LTR',
-                        title: 'ENGLISH\nEDITION',
-                        line: 'Three pages. Every feature the package has.',
-                        color: kTeal,
-                        onTap: () => _open(context, const LtrBook(), mirror: false),
-                      ),
-                      const SizedBox(height: 14),
-                      _Edition(
-                        kicker: 'RTL',
-                        title: 'الطبعة\nالعربية',
-                        line: 'The same book, mirrored, plus a settings page.',
-                        color: kPink,
-                        textDirection: TextDirection.rtl,
-                        onTap: () => _open(context, const RtlBook(), mirror: true),
-                      ),
-                    ],
+    backgroundColor: kStock,
+    body: Stack(
+      children: [
+        const Positioned.fill(child: _Cover()),
+        Positioned.fill(
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(26, 0, 26, 28),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Spacer(),
+                  _Edition(
+                    kicker: 'LTR',
+                    title: 'ENGLISH\nEDITION',
+                    line: 'Three pages. Every feature the package has.',
+                    color: kTeal,
+                    onTap: () => _open(context, const LtrBook(), mirror: false),
                   ),
-                ),
+                  const SizedBox(height: 14),
+                  _Edition(
+                    kicker: 'RTL',
+                    title: 'الطبعة\nالعربية',
+                    line: 'The same book, mirrored, plus a settings page.',
+                    color: kPink,
+                    textDirection: TextDirection.rtl,
+                    onTap: () => _open(context, const RtlBook(), mirror: true),
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
         ),
-      );
+      ],
+    ),
+  );
 }
 
 /// The masthead and the paper it sits on. Reused as the curling cover, so the
@@ -107,46 +107,46 @@ class _Cover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Stack(
-        clipBehavior: Clip.hardEdge,
-        children: [
-          const Positioned.fill(child: ColoredBox(color: kStock)),
-          Positioned.fill(
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(26, 54, 26, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'PAGE\nCURL\nFLIP',
-                      style: const TextStyle(
-                        fontSize: 58,
-                        height: 0.92,
-                        letterSpacing: -2.6,
-                        fontWeight: FontWeight.w900,
-                        color: kPink,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Container(width: 64, height: 5, color: kTeal),
-                    const SizedBox(height: 14),
-                    const Text(
-                      'A REALISTIC PAGE CURL FOR FLUTTER · ZERO DEPENDENCIES',
-                      style: TextStyle(
-                        fontSize: 10,
-                        letterSpacing: 2.4,
-                        height: 1.6,
-                        fontWeight: FontWeight.w800,
-                        color: kInkSoft,
-                      ),
-                    ),
-                  ],
+    clipBehavior: Clip.hardEdge,
+    children: [
+      const Positioned.fill(child: ColoredBox(color: kStock)),
+      Positioned.fill(
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(26, 54, 26, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'PAGE\nCURL\nFLIP',
+                  style: const TextStyle(
+                    fontSize: 58,
+                    height: 0.92,
+                    letterSpacing: -2.6,
+                    fontWeight: FontWeight.w900,
+                    color: kPink,
+                  ),
                 ),
-              ),
+                const SizedBox(height: 14),
+                Container(width: 64, height: 5, color: kTeal),
+                const SizedBox(height: 14),
+                const Text(
+                  'A REALISTIC PAGE CURL FOR FLUTTER · ZERO DEPENDENCIES',
+                  style: TextStyle(
+                    fontSize: 10,
+                    letterSpacing: 2.4,
+                    height: 1.6,
+                    fontWeight: FontWeight.w800,
+                    color: kInkSoft,
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
-      );
+        ),
+      ),
+    ],
+  );
 }
 
 /// One edition block. A colour block that runs the full measure, the way the
