@@ -3,11 +3,9 @@
 A realistic cylindrical page-curl animation for Flutter. Pages peel away like
 real paper — perspective, diffuse shadow, and a specular sheen included.
 
-Import it, pass your pages, done. **Zero dependencies** — the package is a
-skeleton you decorate: every colour, every label, and every icon is
-customizable, and sound is a callback you plug anything into. Built-in page
-layout and searchable table of contents. RTL-aware. Works on Android, iOS,
-web, and desktop.
+**Zero dependencies.** The package is a skeleton you decorate: every colour,
+label, and icon is replaceable, and sound, speech, and storage are callbacks
+you plug anything into. RTL-aware. Works on Android, iOS, web, and desktop.
 
 ![page_curl_flip demo — LTR and RTL books, swipes, buttons, and read-aloud](https://raw.githubusercontent.com/vanisupriyam/page_curl_flip/main/doc/demo.gif)
 
@@ -15,268 +13,248 @@ web, and desktop.
 
 | Widget | Use it for |
 |---|---|
-| `FlipBook` | A complete multi-page book: navigation, searchable table of contents, flip sound with mute |
+| `FlipBook` | A complete multi-page book: navigation, table of contents, read-aloud, reader marks, bookmarks, export |
 | `PageCurlRoute` | A `Navigator` transition that peels the previous screen away |
 | `CurlOverlay` | The raw curl, driven by any `progress` value you control |
 
-## FlipBook
-
-Every page field is optional — leave one out and it simply does not appear.
-One `title` does two jobs: it names the page in the table of contents AND
-prints big at the top of the page.
+## Quick start
 
 ```dart
 FlipBook(
   onClose: () => Navigator.of(context).pop(),
-  pages: const [
-    FlipBookPage(
-      title: 'A Tiny Book',        // in the INDEX and printed on the page
-      tagline: 'a line under it',  // optional smaller line
-      body: Text('Hello.'),        // body is ANY widget — text, image, layout
-    ),
-    FlipBookPage(
-      title: 'Images too',
-      body: Center(child: FlutterLogo(size: 160)),
-    ),
-    FlipBookPage(
-      title: 'Full control',
-      showTitleOnPage: false,       // title only in the INDEX…
-      body: MyCompletelyCustomPage(), // …body fills the whole page
-    ),
-  ],
+  pages: FlipBookPages(
+    items: const [
+      FlipBookPage(
+        title: 'A Tiny Book',                 // in the contents AND on the page
+        tagline: 'a line under it',           // optional smaller line
+        bodySegments: ['Hello.', 'Goodbye.'], // the text, unit by unit
+      ),
+      FlipBookPage(
+        title: 'Images too',
+        body: Center(child: FlutterLogo(size: 160)), // body is ANY widget
+      ),
+    ],
+  ),
 )
 ```
 
-Pages with a `title` appear in the built-in table of contents (INDEX button),
-which supports live search and direct jumps.
+**Every feature is an object you pass, and it exists only if you pass it.**
+A book with nothing but pages has no voice controls, no pencil, and no
+settings for things it does not do. Pass `readAloud:`, `marker:`,
+`bookmarks:`, or `contents.export:` and everything about that feature —
+behaviour, icons, colours, words — lives inside that one object.
 
-### Reading direction
+## Pages
 
-Text direction in Flutter has exactly two values, and the book handles both:
-left-to-right under English, Dutch, German and other LTR locales, and
-right-to-left **automatically** under Arabic, Hebrew and other RTL locales —
-buttons mirror and pages flip the opposite way. To force a direction
-regardless of locale, set `textDirection: TextDirection.rtl` (or `.ltr`).
-
-### Swipe
-
-Swiping is on by default: a horizontal fling turns the page with the same
-curl the buttons use, and the gesture mirrors under RTL.
-
-When a page opens, a hint greets the reader right away: the hint text
-between two runs of broad chevrons that fade toward the words — no
-background, no container. It fades out after a moment, returns every
-20 seconds for as long as the reader stays on the page, and retires forever
-once the reader has turned 3 pages by swiping — in any mix of directions —
-at which point the gesture is clearly learned. Everything is a switch or a
-knob:
+Everything about presentation lives in `FlipBookPages`:
 
 ```dart
-FlipBook(
-  swipeToFlip: true,     // default — set false for buttons-only
-  showNavButtons: true,  // set false for a gesture-only book
-  showSwipeHint: true,   // default — set false to remove the hint
-  swipeHintDelay: Duration(seconds: 20),   // how often it returns
-  swipeHintDuration: Duration(seconds: 3), // how long it stays visible
-  swipeHintMaxSwipes: 3,                   // swipes until "learned"
-  onSwipeHintRetired: () => prefs.setBool('swipeLearned', true),
-  ...
+pages: FlipBookPages(
+  items: [...],
+  paperColor: const Color(0xFFFBFAF6),
+  style: const FlipBookPageStyle(titleStyle: TextStyle(fontSize: 28)),
+  textDirection: TextDirection.rtl,           // null follows the locale
+  initialPage: prefs.getInt('lastPage') ?? 0,
+  onChanged: (i) => prefs.setInt('lastPage', i),
+  showNumber: true,
 )
 ```
 
-"Retires forever" means the life of the book: the package persists nothing,
-so a reopened book greets again. To keep a learned reader from being
-re-greeted, persist the `onSwipeHintRetired` signal (it fires exactly once,
-at the moment of retirement) and pass
-`showSwipeHint: !(prefs.getBool('swipeLearned') ?? false)` on the next open.
+A page is built from optional parts:
 
-Hint text: `FlipBookStrings.swipeHint` · colour, size, font:
-`FlipBookTheme.swipeHintStyle` · chevron size:
-`FlipBookTheme.swipeHintArrowSize` — the chevron glyphs themselves come from
-`FlipBookIcons.previous` / `next`.
+- `title` / `tagline` — printed at the top and listed in the contents.
+  `showTitleOnPage: false` keeps the title in the contents only.
+- `bodySegments` — the text as a list of reading units. **The accurate way**:
+  one entry is one unit, marked and spoken as-is, in every script.
+- `bodyText` — one string the book splits on full stops. `pub.dev` and
+  `$23.54` survive; `Dr. Smith` does not. Prefer `bodySegments`.
+- `bodyWidgets` — widgets dropped between the units: `{1: Image.asset(...)}`
+  inserts before segment 1. The text around them stays markable and readable.
+- `background` — decoration behind a text page (ruled paper, parchment); it
+  scrolls with the text.
+- `body` — ANY widget as the whole page. Full layout control; the book can
+  read its `bodyText` aloud but cannot mark or auto-scroll it.
+- `style` — a per-page `FlipBookPageStyle`, overriding the book's.
+- `id` — stable identity; required for reader marks and saved pages.
 
-### Speed
+Text pages the book lays out itself scroll when they exceed the screen.
+
+## Reading direction
+
+LTR under English and other LTR locales; **automatically mirrored** under
+Arabic and any RTL locale — buttons mirror, chevrons flip, and pages curl
+the other way. Force it with `textDirection:` regardless of locale.
+
+## Swipe
+
+A horizontal fling turns the page; a vertical one scrolls it. On by default,
+mirrored under RTL. A hint greets new pages and retires after `maxShows`
+appearances — persist `onRetired` to stop greeting a reader who has learned:
+
+```dart
+swipe: FlipBookSwipe(
+  hint: FlipBookSwipeHint(                    // null = no hint
+    showFor: const Duration(seconds: 3),
+    maxShows: 3,
+    onRetired: () => prefs.setBool('swipeLearned', true),
+    child: Image.asset('assets/swipe.gif'),   // or any widget of yours
+  ),
+)
+```
+
+## Flip speed and sound
 
 ```dart
 FlipBook(flipSpeed: FlipSpeed.slow, ...)                          // preset
-FlipBook(flipSpeed: FlipSpeed.fast, ...)                          // preset
 FlipBook(flipSpeed: const FlipSpeed.custom(Duration(seconds: 2))) // your own
 ```
 
-### Sound
-
-The package ships **no audio** and has no audio dependency — you provide the
-flip sound through a callback, with any player or service you like:
+The package ships no audio. Give the footer a sound object and a speaker
+button appears; omit it and the book is silent:
 
 ```dart
-FlipBook(onPageFlip: _mySound.play, ...) // your sound — a mute button appears
-FlipBook(enableSound: false, ...)        // master off-switch, button hidden
-FlipBook(showMuteButton: false, ...)     // sound on, speaker button hidden
+footer: FlipBookFooter(sound: FlipBookSound(onFlip: _mySound.play)),
 ```
 
-No `onPageFlip` → silent book, no speaker button. The example wires
-`audioplayers` with its own 1.15-second sample matched to the flip duration —
-copy that pattern, or bring your own.
+## Read aloud
 
-### Icons
-
-Every icon is replaceable — the same skeleton idea as the labels:
+Wire any speech engine; the book reads **unit by unit** and calls you once
+per unit:
 
 ```dart
-FlipBook(
-  icons: const FlipBookIcons(
-    next: Icons.arrow_forward_ios,
-    previous: Icons.arrow_back_ios_new,
-    volumeOn: Icons.music_note,
+readAloud: FlipBookReadAloud(
+  onRead: (unit) => tts.speak(unit), // future completes when the unit ends
+  onStop: tts.stop,
+  onPause: tts.pause,                // optional pair — enables pause
+  onResume: tts.resume,
+  playAll: true,                     // PLAY ALL: the whole book, audiobook-style
+),
+```
+
+- **Read marker** — the unit being spoken is marked and the page
+  auto-scrolls to it. It moves when the engine reports a unit done — never
+  on a timer — so it cannot drift. Styles: `highlight` (a translucent band)
+  or `focus` (the rest of the page dims). Configure via `FlipBookHighlight`,
+  or take over rendering with its `builder`.
+- **Speed** — pass `speed: FlipBookSpeedControl(...)` and a `0.5x · 1x · 1.5x`
+  pill appears while reading. The package reports the choice; you apply it
+  to your engine.
+- **What is read** — title, tagline, body: each can be switched off
+  (`readTitle:` …) and each can be excluded from the focus dim (`fadeTitle:` …).
+- Play-all works in the foreground; backgrounding stops the voice and the
+  chain. The example wires `flutter_tts` completely, including
+  pause-by-word-position and a missing-voice dialog.
+
+## Reader marks
+
+A pencil in the footer; a drag marks whole words; SAVE / CANCEL float at the
+marked passage itself:
+
+```dart
+marker: FlipBookMarker(
+  marks: _marks,                       // loaded from YOUR storage
+  onChanged: (marks) => save(marks),
+),
+```
+
+- CANCEL drops the draft **and exits marking mode** — marking owns the
+  horizontal drag, so staying in it would block page turns.
+- A trash button appears **only on pages that have marks**, and clears that
+  page only.
+- Marks are stored against `FlipBookPage.id`, never the page number, so
+  reordering pages cannot move them. No `id`, no pencil.
+- **The package stores nothing.** `ReaderMark` is plain primitives
+  (`toMap` / `fromMap`) — persist with whatever your app already uses.
+
+## Bookmarks and saved pages
+
+Two ways of keeping a place, both reported through callbacks and handed back
+as values:
+
+```dart
+bookmarks: FlipBookBookmarks(
+  bookmarkedPage: _bookmark,               // the page to carry on from
+  onBookmark: (page) => keep(page),        // tap again to remove
+  saved: _savedIds,                        // the reader's collection, by page id
+  onSavedChanged: (ids) => keepAll(ids),
+),
+```
+
+## Contents and export
+
+Pages with a `title` appear in the table of contents (INDEX button), with
+live search and direct jumps. Give it an export object and an export button
+appears, offering the reader's saved pages, marked passages, or the whole
+book as plain data — page numbers, titles, and strings — for you to turn
+into a PDF, an email, anything:
+
+```dart
+contents: FlipBookContents(
+  export: FlipBookExport(
+    onExport: (kind, entries) => makePdf(kind, entries),
   ),
-  ...
-)
+),
 ```
 
-Close, chevrons, speaker pair, search, bookmark — all overridable, plus a
-shared `size` for the footer icons. Direction arrows are mirrored
-automatically under RTL, whatever icon you chose. (The voice controls are
-text buttons — see Read aloud — customized through `FlipBookVoiceChips`.)
+The example builds a real shareable PDF from it.
 
-### Read aloud
+## Chrome: footer, header, tap labels, immersive mode
 
-Give the book a voice with any speech engine or service — the package draws
-a centred voice button and manages its states; you provide the reading:
+Controls are icons on a bar; **a tapped control names itself** above the
+footer for a moment (`tapLabelFor`, `Duration.zero` turns it off). Any
+control takes a custom icon or a word instead. With `autoHide: true` the
+book opens as a pure page — a tap (or a mouse hover at the edge) reveals the
+chrome, which retires again after `revealFor`:
 
 ```dart
-FlipBook(
-  onReadAloud: (page) => tts.speak(
-    // What gets read is your choice — any combination of the three parts:
-    pages[page].speechText(title: true, tagline: false, body: true),
-  ),
-  onReadAloudStop: tts.stop,     // stop tapped: kill the voice
-  onReadAloudPause: tts.pause,   // optional — enables pause
-  onReadAloudResume: tts.resume, // continue where it paused
-)
+header: const FlipBookHeader(autoHide: true),
+footer: FlipBookFooter(
+  autoHide: true,
+  revealFor: const Duration(seconds: 3),
+  color: Colors.teal,          // the bar; Colors.transparent floats the icons
+),
 ```
 
-Give each `FlipBookPage` a `bodyText` (the plain-text of its widget body) and
-`speechText()` composes title, tagline, and body — each part switchable.
+`header: null` / `footer: null` removes an element entirely.
 
-Idle shows a single ▶ play button. While reading it becomes ⏸ pause + ⏹ stop
-(pause only when you provide the pause/resume pair); paused shows ▶ + ⏹, and
-play continues from where it paused. Stop always resets to the beginning, and
-flipping or jumping away stops the reading automatically.
-
-The voice controls are **plain text buttons** — PLAY, PLAY ALL, PAUSE,
-RESUME, STOP, styled like PREV/NEXT — because a word explains itself on
-every platform where a tooltip cannot. Every label localizes through
-`FlipBookStrings`, the style through `FlipBookTheme.voiceChipStyle`, and
-any control's content can be replaced with any widget (an icon, an image…)
-while the tap handling and screen-reader labels stay the package's:
-
-```dart
-FlipBook(
-  voiceChips: const FlipBookVoiceChips(
-    play: Icon(Icons.play_arrow, size: 16), // this chip becomes an icon
-  ),
-  ...
-)
-```
-
-**Play the whole book** — opt in and a PLAY ALL chip appears beside PLAY:
-it reads page after page like an audiobook, flipping by itself through the
-same callbacks you already provide. PLAY still reads only the shown page —
-the reader chooses per tap. STOP ends the chain, PAUSE holds it (RESUME
-continues), and a manual flip, a jump, or the app going to background stops
-everything:
-
-```dart
-FlipBook(readAloudAdvances: true, ...) // default false
-```
-
-Play-all reads **while the app is in the foreground** — leaving it stops
-the voice and the chain (true background audio needs app-level platform
-setup: the iOS `audio` background mode, an Android foreground service).
-The example keeps the screen awake while the voice reads
-(`wakelock_plus`), so a long listen does not die to the screen timeout.
-
-**Player strip** — opt in and a thin progress bar (plus an optional timing
-label) appears above the footer while reading. The package makes no sound,
-so your app feeds both values; speech engines report no total duration, so
-the label is free-form — the example shows elapsed time:
-
-```dart
-FlipBook(
-  showReadAloudProgress: true,        // default false
-  readAloudProgress: _progress,       // 0.0–1.0, from your engine's events
-  readAloudProgressLabel: _elapsed,   // any text, e.g. "0:07" — null hides it
-  ...
-)
-```
-
-Style it with `FlipBookTheme.readAloudProgressColor`,
-`readAloudProgressTrackColor`, and `readAloudProgressLabelStyle`; the bar
-fills in reading direction (RTL-aware). See `example/lib/main.dart` for a
-complete `flutter_tts` wiring — including resume-by-word-position (Android's
-engine has no native pause), the progress/elapsed feed from word-boundary
-events, and detecting a missing language voice.
-
-### Immersive reading (auto-hiding chrome)
-
-Open the book as a pure page — no buttons, just paper. A tap on the page
-reveals the footer (INDEX, voice, PREV/NEXT…), which fades away again after
-a few quiet seconds. On mouse platforms, hovering over the bottom reveals it
-too. The × close button stays visible in every mode, so the reader always
-has a way out:
-
-```dart
-FlipBook(
-  chrome: FlipBookChrome.autoHide,        // default: FlipBookChrome.always
-  chromeRevealFor: Duration(seconds: 3),  // how long a reveal lasts
-  ...
-)
-```
-
-Swiping keeps working while the chrome is hidden — gesture-only reading —
-and the swipe hint still greets, since it lives on the page, not in the
-chrome.
-
-### Your own buttons, anywhere
-
-Hide the built-in controls and drive the book yourself:
+## Your own buttons, anywhere
 
 ```dart
 final controller = FlipBookController();
 
 FlipBook(
   controller: controller,
-  showControls: false, // no ×, no INDEX, no PREV/NEXT, no speaker
-  pages: [...],
+  header: null,
+  footer: null,
+  pages: FlipBookPages(items: const [...]),
   onClose: () {},
 );
 
-// Any widget, any position:
 FloatingActionButton(onPressed: controller.nextPage);
 ```
 
-`controller` gives you `nextPage()`, `previousPage()`, `jumpToPage(i)`,
-`openIndex()`, `closeIndex()`, `toggleMute()`, and the current `page`.
-To keep the built-in layout but hide only the speaker, use
-`showMuteButton: false`.
+`nextPage()`, `previousPage()`, `jumpToPage(i)`, `openIndex()`,
+`closeIndex()`, `toggleMute()`, and the current `page`.
 
-### Styling and localization
+## Styling and localization
 
-Every colour and text style comes from `FlipBookTheme`; every built-in label
-from `FlipBookStrings`. Both have complete defaults, so you only override what
-you need:
+There is no theme object and no strings object: **each feature carries its
+own look and its own words**. Every field defaults, so you only name what
+you change — and translating a book means filling in the labels:
 
 ```dart
 FlipBook(
-  theme: const FlipBookTheme().copyWith(closeIconColor: Colors.teal),
-  strings: const FlipBookStrings(
-    index: 'INHALT',
-    previous: 'ZURÜCK',
-    next: 'WEITER',
+  header: const FlipBookHeader(closeLabel: 'إغلاق'),
+  footer: const FlipBookFooter(
+    index: FlipBookIndexButton(label: 'الفهرس'),
+    nav: FlipBookNavButtons(previousLabel: 'السابق', nextLabel: 'التالي'),
   ),
+  contents: const FlipBookContents(heading: 'جدول المحتويات'),
   ...
 )
 ```
+
+The example's Arabic book is a complete translation of every label.
 
 ## PageCurlRoute
 
@@ -289,12 +267,12 @@ Navigator.of(context).push(
 );
 ```
 
-All four durations (route forward/reverse, curl forward/reverse) are
-constructor parameters.
+Mirrors automatically under RTL; `mirror:` forces a direction. All four
+durations (route and curl, forward and reverse) are parameters.
 
 ## CurlOverlay
 
-Drive the curl yourself — from an `AnimationController`, a slider, or a drag:
+Drive the curl yourself — from an `AnimationController`, a slider, a drag:
 
 ```dart
 CurlOverlay(
@@ -303,48 +281,35 @@ CurlOverlay(
 )
 ```
 
-Or capture the page bitmap yourself and pass it as `pageImage` for exact
-control over what bends.
+Or capture the bitmap yourself and pass `pageImage` for exact control.
 
-## Known limitations (v0.1)
+## Known limitations
 
-Honest list — these are design decisions or open items, not surprises:
-
-- **Swipes fling, they don't drag.** A horizontal fling plays the full curl
-  animation; the page does not follow your finger mid-drag. Interactive
-  drag-to-curl may come later if there is demand.
-- **`PageCurlRoute` always peels left-to-right**, regardless of locale —
-  unlike `FlipBook`, which fully mirrors under RTL.
-- **Pages do not scroll.** The built-in title/tagline layout is a fixed
-  column; if your content can exceed one page height, give the `body` its own
-  `SingleChildScrollView` — the body owns scrolling.
-- **Flips show a snapshot.** Each flip captures the page as a bitmap, so an
-  animating body (GIF, video) appears frozen during the curl and resumes
-  after it.
-- **Mute and reading state are not persisted** across widget rebuilds that
-  recreate the book.
+- **Swipes fling, they don't drag** — the page does not follow your finger
+  mid-drag.
+- **A reader mark cannot cross paragraphs** — a `ReaderMark` lives inside
+  one `bodySegments` entry.
+- **`body:` widget pages do not scroll** — a widget body owns its layout;
+  give it its own `SingleChildScrollView`. Text pages already scroll.
+- **Flips show a snapshot** — an animating body (GIF, video) freezes during
+  the curl and resumes after it.
+- **Mute and reading state are not persisted** across rebuilds that recreate
+  the book.
 
 ## Testing note
 
-**Golden baselines are macOS-rendered.** CI runs on `macos-latest` so the
-same rasterizer produces and checks them. If you regenerate goldens
-(`flutter test --update-goldens test/goldens_test.dart`), do it on macOS —
-baselines rendered on Linux or Windows will fail CI.
-
-The package has **zero dependencies** and makes no sound of its own — flip
-sound and speech run through your callbacks. In widget tests either pass
-`enableSound: false` or provide a no-op `onPageFlip`; the callbacks are
-fire-and-forget by design, so an audio failure in your app can never break
-the animation.
+Golden baselines are macOS-rendered; regenerate them on macOS
+(`flutter test --update-goldens test/goldens_test.dart`). In widget tests,
+omit the sound/speech objects or pass no-ops — the callbacks are
+fire-and-forget, so an audio failure can never break the animation.
 
 ## How it works
 
-On each flip the current page is captured as a bitmap at the device's pixel
-ratio (capped at 2× — a moving curl cannot show more detail, and the cap
-halves the bitmap memory), then drawn as 28 vertical slices projected onto a cylinder whose radius
-shrinks and grows with `progress`. Slices are depth-sorted, shaded by their
-angle to the light, and given a moving specular glint — which is what makes
-the paper read as physically curling rather than just rotating.
+Each flip captures the page as a bitmap at the device pixel ratio (capped at
+2×), then draws it as 28 vertical slices projected onto a cylinder whose
+radius shrinks and grows with `progress`. Slices are depth-sorted, shaded by
+their angle to the light, and given a moving specular glint — which is what
+makes the paper read as physically curling rather than just rotating.
 
 ## License
 

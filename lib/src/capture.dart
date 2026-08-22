@@ -8,8 +8,8 @@ import 'package:flutter/widgets.dart';
 /// `null` when the boundary is absent, unpainted, or capture fails.
 ///
 /// Uses [RenderRepaintBoundary.toImageSync]: the image stays GPU-resident
-/// (no CPU round-trip) and the call returns in the same frame, which removes
-/// the await-gaps the old async capture had to guard against.
+/// (no CPU round-trip) and the call returns in the same frame, so no await
+/// gap exists in which the tree could change under the capture.
 ///
 /// Failures are reported through [FlutterError.reportError] so they surface
 /// in debug consoles and crash reporters without ever throwing into the
