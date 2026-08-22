@@ -12,8 +12,17 @@ cd "$(dirname "$0")/.."
 ids=(
   NAV-05
   TTS-13
-  TTS-14 TTS-15 TTS-16 TTS-17
-  CHR-01 CHR-02 CHR-03
+  # TTS-14 retired 2026-08-18: the progress bar it covered was removed in
+  # favour of the read marker (v0.2) — the MRK ids below took its place.
+  TTS-15 TTS-16 TTS-17
+  MRK-01 MRK-02 MRK-03 MRK-04 MRK-05 MRK-06 MRK-07 MRK-08 MRK-09
+  SPD-01 SPD-02
+  MRK-10 MRK-11 MRK-13 MRK-14
+  BMK-01 BMK-02
+  EXP-01
+  CTL-01 CTL-02 CTL-03
+  SWP-11
+  CHR-01 CHR-02 CHR-03 CHR-04 CHR-05
   SWP-10
   EDG-01 EDG-02 EDG-03 EDG-04 EDG-05 EDG-06 EDG-07 EDG-08
   ACC-01

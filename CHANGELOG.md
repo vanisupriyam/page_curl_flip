@@ -1,5 +1,230 @@
 # Changelog
 
+## 0.2.0
+
+**Every feature is now an object you pass, and it exists only if you pass
+it.** `FlipBook()` with nothing but pages gives a plain book with no voice
+controls, no pencil, and no settings for things it does not do. Ask for a
+feature and everything about it — behaviour, icons, colours, words — lives
+inside that one object, so nothing is scattered and nothing is dead config.
+
+### Migrating from 0.1.x
+
+| Was | Now |
+|---|---|
+| `theme:`, `strings:`, `icons:`, `voiceChips:` | **gone** — each feature carries its own look and words |
+| `onReadAloud:`, `onReadAloudStop/Pause/Resume:`, `readAloudAdvances:` | `readAloud: FlipBookReadAloud(onRead:, onStop:, onPause:, onResume:, playAll:)` |
+| `onPageFlip:`, `enableSound:`, `showMuteButton:` | `footer: FlipBookFooter(sound: FlipBookSound(onFlip:, showMute:))` — **no sound object means a silent book** |
+| `chrome: FlipBookChrome.autoHide` | `footer: FlipBookFooter(autoHide: true)` |
+| `headerChrome:` | `header: FlipBookHeader(autoHide: true)` |
+| `showHeader: false` / `showFooter: false` / `showControls: false` | `header: null` / `footer: null` / both |
+| `showNavButtons: false` | `footer: FlipBookFooter(nav: FlipBookNavButtons(show: false))` |
+| `swipeToFlip:`, `showSwipeHint:`, `swipeHintDuration:`, `swipeHintMaxShows:`, `swipeHint:`, `onSwipeHintRetired:` | `swipe: FlipBookSwipe(enabled:, hint: FlipBookSwipeHint(showFor:, maxShows:, child:, onRetired:))` — `hint: null` removes it |
+| `marking:`, `marks:`, `onMarksChanged:` | `marker: FlipBookMarker(marks:, onChanged:)` — `null` means no pencil |
+| `showReadSpeed:`, `readSpeed:`, `onReadSpeedChanged:` | `readAloud: FlipBookReadAloud(speed: FlipBookSpeedControl(initial:, onChanged:))` |
+| `pages: [...]`, `pageColor:`, `initialPage:`, `onPageChanged:`, `showPageNumber:`, `textDirection:` | `pages: FlipBookPages(items:, paperColor:, style:, initialPage:, onChanged:, showNumber:, textDirection:)` |
+| `theme.pageTitleStyle` etc. | `pages: FlipBookPages(style: FlipBookPageStyle(titleStyle:, taglineStyle:, bodyStyle:, padding:))` |
+| `theme.toc*`, `strings.tableOfContents`, `strings.searchHint` | `contents: FlipBookContents(...)` |
+| `strings.index` / `.previous` / `.next` | `footer: FlipBookFooter(index: FlipBookIndexButton(label:), nav: FlipBookNavButtons(previousLabel:, nextLabel:))` |
+
+Every field inside every object defaults, so you only name what you change.
+
+---
+
+A book is not an audio player. The player-style progress bar is gone, and a
+read MARKER took its place — the unit being spoken is marked on the page,
+like a hand following the text — plus marks the reader makes themselves.
+
+**Breaking:**
+
+- `onReadAloud` is now `readAloud.onRead`, a
+  `Future<void> Function(String unit)`. The book
+  reads unit by unit and calls you once per unit (`(s) => tts.speak(s)` is a
+  complete wiring); each future completes when the engine finishes that
+  unit. Completions are what drive the marker — no engine timing events —
+  so it behaves identically on every platform and cannot drift.
+  `readAloud.onResume`'s future now completes when the interrupted unit ends.
+- REMOVED: the read-aloud progress bar — `showReadAloudProgress`,
+  `readAloudProgress`, `readAloudProgressLabel`, and the three
+  `readAloudProgress*` theme fields.
+- REMOVED: `swipeHintDelay`, and `swipeHintMaxSwipes` became
+  `swipeHintMaxShows`. The hint no longer returns every 20 seconds while a
+  reader stays on a page — it greets a page, fades, and retires after 3
+  appearances. A hint that keeps coming back nags.
+
+**New:**
+
+- **Reading units you control.** `FlipBookPage.bodySegments` — one entry,
+  one unit: marked, spoken in one call, never parsed or reformatted. Works
+  in every script, RTL included, because the book never inspects the
+  characters. A single `bodyText` still works and is split on full stops,
+  `readAloud.unitsPerMark` at a time; those rules keep `pub.dev`, `$23.54` and
+  `a@b.com` whole, but abbreviations like `Dr.` are exactly why segments
+  exist.
+- **The read marker** — `readAloud: FlipBookReadAloud(highlight:
+  FlipBookHighlight(style:, color:, radius:, dimOpacity:, builder:))`.
+  `FlipBookMarkerStyle.highlight` paints a band behind the unit;
+  `FlipBookMarkerStyle.focus` keeps the unit in full ink and dims the rest.
+  Pause freezes it in place; stop, a flip, or the app leaving the foreground
+  clears it. The page auto-scrolls to keep the marked unit in view. A
+  `builder` replaces the rendering entirely with your own.
+- **Reader marking** — `marker: FlipBookMarker(marks:, onChanged:)`; `null`
+  means no pencil, and it is independent of `readAloud`, because a reader
+  marks passages whether or not the book can speak. A pencil in the footer, a
+  drag across the words — snapped to whole words — then SAVE or CANCEL, and
+  a trash button that appears only on a page that has marks and clears that
+  page alone. CANCEL drops the draft and exits marking mode. The package
+  stores nothing: `onChanged` reports the list and `marks` takes it back, so `ReaderMark` (plain `toMap` / `fromMap`) persists in whatever
+  your app already uses. Marks hang on the new `FlipBookPage.id`, never on
+  page numbers, so inserting a chapter cannot move them onto the wrong text.
+- **Reading speed for the reader**: `readAloud: FlipBookReadAloud(speed:
+  FlipBookSpeedControl(initial:, onChanged:, options:))` draws `0.5x · 1x ·
+  1.5x` in the footer and reports the choice.
+  The package makes no sound, so the app applies it; the marker follows
+  automatically, since it moves on completions.
+- **Text pages**: a `FlipBookPage` with body text and no `body` widget is
+  rendered by the book itself — one scroll view, styled by
+  `pages: FlipBookPages(style: FlipBookPageStyle(bodyStyle:))`, decorated by the new optional `background`
+  widget, which scrolls with the text.
+- **Independent header and footer**: `header: null` / `footer: null` remove
+  either one, and `FlipBookHeader(autoHide: true)` lets the header hide like
+  the footer — on a shared reveal-and-retire clock, with its own top hover
+  strip on mouse platforms and one tap driving every auto-hiding element.
+  Defaults unchanged: header always visible.
+- **Everything about a page in one object**: `FlipBookPages` carries the
+  list, the paper colour, the type, the reading direction, where the book
+  opens and where it is.
+- **The reader's keep / discard controls appear at the passage**, floated
+  under the words just marked, instead of at the bottom of the screen. A
+  reader who has dragged out a sentence is looking at that sentence.
+- **`readTitle` / `readTagline` / `readBody`** choose what the voice reads —
+  and therefore what dims, since a part outside the performance should stay
+  at full ink.
+- **`FlipBookSpeedControl.options`** picks which speeds appear, in your
+  order; `[]` hides the row. The chosen one sits on a **filled pill** and
+  names itself (`1.5x speed`) when tapped, with `slowLabel` / `normalLabel` /
+  `fastLabel` for the wording, because a heavier weight alone
+  was hard to spot.
+- Fixed: a marked passage in Arabic drew as **a wall of bricks**.
+  `getBoxesForSelection` returns a box per text RUN, and Arabic breaks into
+  many; boxes sharing a line are now merged into one band, in every script.
+- **Images and widgets between paragraphs**: `FlipBookPage.bodyWidgets` is
+  a `{index: widget}` map dropped between the text units — a photo, a chart,
+  a divider. The text around them stays markable and readable; the voice
+  skips them, because a picture has nothing to say. Give each a finite
+  height, and pause a video in `onPageChanged` when the reader flips away.
+- **The footer is icons now**, not a row of words: a phone cannot fit
+  INDEX · PLAY · PLAY ALL · PAUSE · STOP · PREV · NEXT as text beside a
+  pencil and a trash. Because an icon cannot explain itself — and a tooltip
+  needs a long press nobody performs on a phone — **a tapped control names
+  itself above the footer** for `footer.tapLabelFor` (3 s; `Duration.zero`
+  switches it off). Screen readers still hear the fuller sentence.
+- **Every footer control takes any widget**, each one living on the feature
+  it belongs to: `footer.index.child`, `footer.nav.previousIcon`,
+  `footer.sound.onIcon`, `readAloud.play`, `marker.save`. Pass a `Text` for
+  the controls you want as words, an icon or any widget for the rest — per
+  control, not all-or-nothing. Default icon size grew 16 → 22.
+- **The footer has a surface**: light grey by default (`footer.color`,
+  `footer.radius`), because bare icons over a photo or dark paper are
+  unreadable. `Colors.transparent` restores the floating look of 0.1.x.
+- The swipe hint is bigger and bolder (17 px w700, 26 px chevrons).
+- `swipe.hint.child` takes any widget — an animated GIF of the gesture, an
+  illustration — replacing the built-in text and chevrons, wrapped in a
+  `Semantics` label so it still announces itself.
+- Fixed: switching a chrome mode to `always` at runtime now shows the
+  element instead of leaving it permanently hidden.
+- **Keeping your place**: `bookmarks: FlipBookBookmarks(...)` puts two
+  buttons on the footer's first line, and they are deliberately not one
+  control. The **bookmark** holds ONE page — "carry on from here next
+  time" — and reports it through `onBookmark`. **Save** holds MANY page ids
+  and reports the whole set through `onSavedChanged`. Neither interrupts
+  anything: tapping the bookmark mid-sentence does not stop the voice, drop
+  a mark, or turn a page. As with marks, the package stores nothing; re-open
+  at the stored page with `FlipBookPages.initialPage`. A page with no `id`
+  offers no save button, because there would be nothing to remember it by.
+- **Export**: `contents: FlipBookContents(export: FlipBookExport(...))` adds
+  an Export button to the table of contents — the one screen that already
+  shows the whole book. It offers three choices (the pages you saved, the
+  passages you marked, the whole book) and hands the app
+  `List<FlipBookExportEntry>`: 1-based page number, id, title, tagline, text
+  and marked passages, in reading order, as plain strings. A choice with
+  nothing behind it is disabled rather than exporting an empty file. **The
+  package builds no file** — a PDF needs a document library and embedded
+  fonts, and this package has zero dependencies. The example shows the other
+  half: `example/lib/export_pdf.dart` builds a compressed, font-subset PDF
+  on a background isolate behind a dialog the reader cannot dismiss, and
+  hands it to the share sheet. Measured at **61 KB for 100 pages**.
+- **The footer is two rows now.** Line 1 is the BOOK — contents, pencil,
+  trash, the page number, prev and next. Line 2 is the VOICE — the flip-sound
+  speaker, play / play-all / pause / stop, and the pace. Nine icons in one
+  row is a scrum on a phone, and a reader hunting for "next page" should
+  never have to scan past a play button. A book with no voice and no mute
+  keeps a single row: the second one is not built at all.
+- **The pace shows only while the voice is actually speaking.** Idle or
+  paused, there is nothing to be fast or slow about, so the row stays short.
+  The example goes one step further and applies a new pace **at the next
+  word** rather than the next paragraph — neither Android nor iOS can change
+  the rate of an utterance already speaking, so it stops and speaks on from
+  the last word boundary. The package needs no change for this: the same
+  `onRead` future stays open, so the book sees one unit and the read marker
+  never moves.
+- Fixed: marks landed on the wrong words on a real device. The `TextPainter`
+  that maps a finger to a character never merged the ambient
+  `DefaultTextStyle`, so it laid the text out in different type from the
+  screen — measured at a 30-character error. It also mis-placed the marker
+  band and made auto-scroll follow the wrong line. Invisible in tests,
+  where every font resolves to the same fixed-width face.
+- The floating SAVE / CANCEL bar is **translucent** by default
+  (`marker.actionBarColor`, `marker.actionBarOpacity`) so the line it covers
+  stays readable, while the words themselves keep full strength.
+- Fixed: `footer: null` used to remove the header as well.
+- Fixed: the reader's SAVE / CANCEL row covered the very words just marked,
+  and under RTL could run off the screen. It is now drawn at page level,
+  pinned to the mark by a `LayerLink` and centred on it within the block's
+  width — it never hides the passage, and it cannot be cropped or sit where
+  Flutter will not hit-test it.
+- Fixed: a part excluded with `readTitle: false` was skipped by the voice but
+  still faded. A part now dims only when it is both read **and** faded, and
+  the new `fadeTitle` / `fadeTagline` / `fadeBody` make "read but never fade"
+  expressible on its own — a page title should not flicker.
+
+**Proven on hardware** (Android 13 and iOS 26, plus a 375 × 667 and a
+384 × 640 screen):
+
+- Fixed: a vertical swipe could turn the page. The guard now reads raw
+  pointer travel from a `Listener` beneath the recogniser, so only a
+  horizontal fling flips and a vertical one scrolls. No widget test can make
+  the recogniser win the gesture arena, so this one is device-verified only.
+- Fixed: the trash cleared the **whole book**. It clears the shown page
+  only, shows only on a page that has marks, and no longer flickers during
+  a flip — the gate follows the arriving page.
+- Fixed: cancelling a draft and then marking the same words again never
+  brought the SAVE / CANCEL row back.
+- Fixed: marking mode survived a page turn. A flip drops the draft and the
+  lit pencil, so the reader never lands on a page they cannot swipe.
+- Fixed: the default nav chevrons read `> <` under RTL; they mirror with
+  the book.
+- Fixed: a decorated text page was inset on all four sides. The padding now
+  sits on the text, so `background` reaches the edges.
+- Fixed: `_MarkerBandPainter` cached a `TextPainter`, and a `CustomPainter`
+  has no `dispose` — one native paragraph leaked per rebuild, worst while
+  read-aloud repaints. The painter is built and disposed per paint.
+- **`FlipBookPage.style`** — a per-page `FlipBookPageStyle` that overrides
+  the book's.
+- **`PageCurlRoute.mirror`** — forces the peel direction. `null` follows
+  `Directionality`, which is wrong when an LTR screen opens an RTL book: the
+  route runs before the book is built and cannot see its direction, so the
+  caller says.
+- **`copyWith`** on `FlipBookPage`, `FlipBookPages`, `FlipBookPageStyle`,
+  `FlipBookFooter`, `FlipBookMarker`, `FlipBookReadAloud`, `FlipBookHeader`
+  and `FlipBookSwipe`.
+- Default save icons `star` → `library_add` / `library_add_check`.
+- The example is now the visual contract for the whole API: the **LTR book
+  overrides every icon, word and colour**, and the **RTL book passes nothing
+  at all** beyond `textDirection` and the callbacks a talking book needs. Run
+  it side by side to see exactly which pixels are yours and which are the
+  package's.
+
 ## 0.1.1
 
 - Replaced the deprecated `Matrix4.translate` call in the curl transform with
