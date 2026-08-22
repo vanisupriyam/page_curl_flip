@@ -28,3 +28,7 @@ coverage/
 
 # Golden failure dumps from red runs — debug artefacts only.
 test/failures/
+
+# The spec-ID traceability gate — a dev check against a QA spec that is not
+# part of the package. Lives in git, not in the archive.
+tool/

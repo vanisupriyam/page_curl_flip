@@ -1,0 +1,33 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      // 🔴 Use this one on a real iPhone. A DEBUG build signed with a free
+      // personal team shows a white screen when it is opened from the home
+      // screen — release does not.
+      "name": "example → device (release)",
+      "request": "launch",
+      "type": "dart",
+      "cwd": "example",
+      "program": "lib/main.dart",
+      "flutterMode": "release"
+    },
+    {
+      // Hot reload, DevTools, breakpoints. Fine while the app is launched
+      // from VS Code and stays attached.
+      "name": "example → device (debug)",
+      "request": "launch",
+      "type": "dart",
+      "cwd": "example",
+      "program": "lib/main.dart"
+    },
+    {
+      "name": "example → macOS (debug)",
+      "request": "launch",
+      "type": "dart",
+      "cwd": "example",
+      "program": "lib/main.dart",
+      "deviceId": "macos"
+    }
+  ]
+}

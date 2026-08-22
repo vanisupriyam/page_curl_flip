@@ -13,9 +13,9 @@ import 'curl_overlay.dart';
 /// `FlipBook` flips between its pages. Without one, the curl is driven
 /// directly by the route animation over plain paper.
 ///
-/// Known limitation (v0.1): the route's curl always peels left-to-right,
-/// regardless of the ambient [Directionality] — unlike `FlipBook`, which
-/// mirrors its flips under RTL locales.
+/// Since 0.2.0 the curl **mirrors under RTL**, matching `FlipBook`: an Arabic
+/// screen peels the opposite way to an English one, because a page travels
+/// the way its script reads. [mirror] overrides the automatic choice.
 ///
 /// ```dart
 /// Navigator.of(context).push(
@@ -37,6 +37,7 @@ class PageCurlRoute<T> extends PageRouteBuilder<T> {
     super.reverseTransitionDuration = const Duration(milliseconds: 750),
     this.curlDuration = const Duration(milliseconds: 900),
     this.curlReverseDuration = const Duration(milliseconds: 600),
+    this.mirror,
   }) : super(
           opaque: true,
           pageBuilder: (context, _, __) => builder(context),
@@ -63,6 +64,13 @@ class PageCurlRoute<T> extends PageRouteBuilder<T> {
   /// Reverse duration of the curl when the route is popped.
   final Duration curlReverseDuration;
 
+  /// Forces the peel direction instead of taking it from [Directionality].
+  ///
+  /// `null` mirrors automatically: left-to-right under LTR, right-to-left
+  /// under RTL. Set it only when the screen's direction is not the direction
+  /// the page should travel.
+  final bool? mirror;
+
   @override
   Widget buildTransitions(
     BuildContext context,
@@ -78,6 +86,7 @@ class PageCurlRoute<T> extends PageRouteBuilder<T> {
       shadow: shadow,
       curlDuration: curlDuration,
       curlReverseDuration: curlReverseDuration,
+      mirror: mirror,
       child: child,
     );
   }
@@ -92,6 +101,7 @@ class _PageCurlTransition extends StatefulWidget {
     required this.shadow,
     required this.curlDuration,
     required this.curlReverseDuration,
+    required this.mirror,
     this.coverChild,
   });
 
@@ -102,6 +112,7 @@ class _PageCurlTransition extends StatefulWidget {
   final double? shadow;
   final Duration curlDuration;
   final Duration curlReverseDuration;
+  final bool? mirror;
   final Widget? coverChild;
 
   @override
@@ -188,6 +199,19 @@ class _PageCurlTransitionState extends State<_PageCurlTransition>
 
   @override
   Widget build(BuildContext context) {
+    // The curl geometry itself only peels one way. Mirroring the whole
+    // overlay horizontally is what makes an Arabic screen travel the way its
+    // script reads — the same rule FlipBook already follows for its flips.
+    final rtl = widget.mirror ??
+        (Directionality.maybeOf(context) == TextDirection.rtl);
+    Widget curl(Widget child) => rtl
+        ? Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()..scale(-1.0, 1.0, 1.0),
+            child: child,
+          )
+        : child;
+
     return Stack(
       children: [
         // Destination — always rendered below the curl overlay.
@@ -220,12 +244,14 @@ class _PageCurlTransitionState extends State<_PageCurlTransition>
               child: SafeArea(
                 child: AnimatedBuilder(
                   animation: _curlCurved,
-                  builder: (_, __) => CurlOverlay(
-                    progress: _curlCurved.value,
-                    pageImage: _coverImage,
-                    pageColor: widget.pageColor,
-                    shine: widget.shine,
-                    shadow: widget.shadow,
+                  builder: (_, __) => curl(
+                    CurlOverlay(
+                      progress: _curlCurved.value,
+                      pageImage: _coverImage,
+                      pageColor: widget.pageColor,
+                      shine: widget.shine,
+                      shadow: widget.shadow,
+                    ),
                   ),
                 ),
               ),
@@ -236,11 +262,13 @@ class _PageCurlTransitionState extends State<_PageCurlTransition>
             child: SafeArea(
               child: AnimatedBuilder(
                 animation: _curlCurved,
-                builder: (_, __) => CurlOverlay(
-                  progress: _curlCurved.value,
-                  pageColor: widget.pageColor,
-                  shine: widget.shine,
-                  shadow: widget.shadow,
+                builder: (_, __) => curl(
+                  CurlOverlay(
+                    progress: _curlCurved.value,
+                    pageColor: widget.pageColor,
+                    shine: widget.shine,
+                    shadow: widget.shadow,
+                  ),
                 ),
               ),
             ),
