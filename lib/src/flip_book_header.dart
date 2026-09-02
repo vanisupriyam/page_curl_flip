@@ -14,6 +14,7 @@ class FlipBookHeader {
     this.closeLabel = 'Close',
     this.action,
     this.autoHide = false,
+    this.closeAtEnd = false,
   });
 
   /// Glyph of the close button.
@@ -33,6 +34,11 @@ class FlipBookHeader {
   /// Off by default: the way out stays in reach unless you decide otherwise.
   final bool autoHide;
 
+  /// Puts the × at the trailing edge instead of the leading one, swapping
+  /// places with [action]. Trailing follows the text direction, so an RTL
+  /// book's "end" is its left. Default false — the × leads, as it always has.
+  final bool closeAtEnd;
+
   /// This object with some fields replaced.
   ///
   /// A null argument means "leave it alone", so a field that is already
@@ -43,6 +49,7 @@ class FlipBookHeader {
     String? closeLabel,
     Widget? action,
     bool? autoHide,
+    bool? closeAtEnd,
   }) {
     return FlipBookHeader(
       closeIcon: closeIcon ?? this.closeIcon,
@@ -50,6 +57,7 @@ class FlipBookHeader {
       closeLabel: closeLabel ?? this.closeLabel,
       action: action ?? this.action,
       autoHide: autoHide ?? this.autoHide,
+      closeAtEnd: closeAtEnd ?? this.closeAtEnd,
     );
   }
 }

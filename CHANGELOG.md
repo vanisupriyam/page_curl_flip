@@ -1,3 +1,49 @@
+## 0.2.2
+
+Bug-fix release.
+
+* **Fixed: a failing read-aloud engine no longer flips the whole book.** In
+  play-all, a page whose `onRead` threw was treated exactly like a page that
+  finished, so the chain advanced — and when every unit failed instantly (an
+  engine offline), the book flipped itself end to end at animation speed with
+  no quiet frame in which to press stop. An engine failure now ends the whole
+  reading session: the marker clears, the chain dies, the reader is back in
+  control. (TTS-18)
+* **Fixed: a failed `onResume` chained the same way.** Same rule now — a
+  resume the engine cannot honour ends the reading, never advances it.
+  (TTS-19)
+* **Added: `FlipBookFooter.horizontalInset`.** Stretches the bar to the page
+  width minus the inset on each side, so its edges line up with the page's
+  text column; the controls spread evenly across it. Null — the default —
+  keeps the content-sized bar exactly as before. (FTR-01)
+* **Added: `FlipBook.onFlipPastEnd`.** Fired when the reader swipes forward
+  on the last page — the one flip the book cannot honour. Null (the default)
+  keeps the long-standing behaviour: the gesture is eaten. The classic use is
+  closing the book from its back cover. Fired only by a real gesture, never
+  by the controller or the play-all chain. (END-01, END-02)
+* **Fixed: a rebuild no longer costs the reader their scroll place.** Each
+  page's scroll view was keyed by object identity, so a caller that rebuilds
+  its page list — any state-management emit, such as saving a mark — was
+  handed a "different" page and thrown back to the top. A page with an `id`
+  is now keyed by it; a flip still opens the next page at its own top, and
+  id-less pages behave exactly as before. (SCR-01)
+* **Added: `FlipBookMarker.activeColor`.** The lit pencil's own colour. It
+  used to borrow the mark wash made opaque — and the moment the wash and the
+  footer bar share a colour family, the pencil vanishes into the bar the
+  instant marking switches on (found on a device). Null keeps the old
+  fallback. The same parameter bookmarks have carried since 0.2.0. (MRK-16)
+* **Added: `FlipBookHeader.closeAtEnd`.** Puts the x at the trailing edge,
+  swapping places with the header action; mirrors under RTL by itself.
+  Default false — the x leads, pixel-identical to before. (HDR-01)
+* **Internal: the state was split into behaviour clusters** — reading aloud
+  and reader-marks each live in their own file now, joined to the shared
+  core by an explicit cross-cluster contract. No public API or behaviour
+  change; the six golden baselines pass byte-identical, which is the proof.
+* **Changed: the listing now declares `android` and `ios` only.** These are
+  the platforms the package is actually tested on. Nothing was removed — it
+  is pure Flutter with zero dependencies and very likely renders elsewhere —
+  but a platform badge is a promise, and these two are the ones we keep.
+
 # Changelog
 
 ## 0.2.1

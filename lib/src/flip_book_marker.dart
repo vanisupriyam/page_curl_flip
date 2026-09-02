@@ -35,6 +35,7 @@ class FlipBookMarker {
     this.marks = const [],
     this.onChanged,
     this.color = const Color(0x338A8A8A),
+    this.activeColor,
     this.pencil,
     this.clear,
     this.save,
@@ -106,6 +107,15 @@ class FlipBookMarker {
   /// Text style of the save / cancel row; null uses the footer's.
   final TextStyle? actionStyle;
 
+  /// Colour of the pencil while marking is ON.
+  ///
+  /// Null falls back to [color] made opaque — the pre-0.2.2 behaviour. Set it
+  /// when the wash and the footer share a family: an opaque rose pencil on a
+  /// rose bar simply vanishes, which is how this parameter was earned
+  /// (portfolio device round, 2026-09-02 — the same lesson bookmarks learned
+  /// on 2026-08-23 with THEIR activeColor).
+  final Color? activeColor;
+
   /// Colour of the pencil and trash icons; null uses the footer's.
   final Color? iconColor;
 
@@ -129,6 +139,7 @@ class FlipBookMarker {
     String? saveLabel,
     String? cancelLabel,
     TextStyle? actionStyle,
+    Color? activeColor,
     Color? iconColor,
   }) {
     return FlipBookMarker(
@@ -147,6 +158,7 @@ class FlipBookMarker {
       saveLabel: saveLabel ?? this.saveLabel,
       cancelLabel: cancelLabel ?? this.cancelLabel,
       actionStyle: actionStyle ?? this.actionStyle,
+      activeColor: activeColor ?? this.activeColor,
       iconColor: iconColor ?? this.iconColor,
     );
   }

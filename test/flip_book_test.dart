@@ -1098,6 +1098,87 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets(
+        'TTS-18: an engine failure during play-all ends the WHOLE chain — '
+        'zero pages advance', (tester) async {
+      // The device bug this pins down (2026-09-02): offline, every clip
+      // failed instantly; 0.2.1 treated each errored page as "finished" and
+      // chained forward, flipping the whole book at animation speed with no
+      // quiet frame to press stop in. On 0.2.1 this test fails with calls
+      // for every page and the last page on screen.
+      final calls = <String>[];
+      await tester.pumpWidget(MaterialApp(
+        home: FlipBook(
+          onClose: () {},
+          readAloud: FlipBookReadAloud(
+            onRead: (sentence) async {
+              calls.add(sentence);
+              throw Exception('offline');
+            },
+            playAll: true,
+          ),
+          pages: FlipBookPages(items: const [
+            FlipBookPage(title: 'One', body: Text('page one')),
+            FlipBookPage(title: 'Two', body: Text('page two')),
+            FlipBookPage(title: 'Three', body: Text('page three')),
+          ]),
+        ),
+      ));
+
+      await tester.tap(ctl('PLAY ALL'));
+      await tester.pump();
+      await tester.pump();
+      // Generous settling: if the chain were alive, flips would be running.
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pump(const Duration(seconds: 3));
+
+      expect(calls, ['One'],
+          reason: 'the first failure must end the chain, not skip the page');
+      expect(find.text('page one'), findsOneWidget,
+          reason: 'the book must not have advanced');
+      expect(find.text('page three'), findsNothing);
+      expect(ctl('PLAY'), findsOneWidget,
+          reason: 'back at idle — the reader is in control again');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('TTS-19: a failed RESUME ends the chain the same way',
+        (tester) async {
+      final calls = <String>[];
+      final first = Completer<void>();
+      await tester.pumpWidget(MaterialApp(
+        home: FlipBook(
+          onClose: () {},
+          readAloud: FlipBookReadAloud(
+            onRead: (sentence) {
+              calls.add(sentence);
+              return first.future;
+            },
+            onPause: () {},
+            onResume: () async => throw Exception('offline'),
+            playAll: true,
+          ),
+          pages: FlipBookPages(items: const [
+            FlipBookPage(title: 'One', body: Text('page one')),
+            FlipBookPage(title: 'Two', body: Text('page two')),
+          ]),
+        ),
+      ));
+
+      await tester.tap(ctl('PLAY ALL'));
+      await tester.pump();
+      await tester.tap(ctl('PAUSE'));
+      await tester.pump();
+      await tester.tap(ctl('PLAY'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 3));
+
+      expect(calls, ['One']);
+      expect(find.text('page one'), findsOneWidget,
+          reason: 'a resume the engine refused must not flip the book');
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('flipping away stops an active read', (tester) async {
       final started = Completer<void>();
       var stopped = 0;
@@ -1138,6 +1219,191 @@ void main() {
       ));
       expect(find.byIcon(Icons.volume_up), findsNothing);
       expect(find.byIcon(Icons.volume_off), findsNothing);
+    });
+  });
+
+  group('Scroll identity (SCR)', () {
+    testWidgets(
+        'SCR-01: a rebuild with recreated-but-equal pages keeps the scroll '
+        'place; a flip still opens the next page at its top', (tester) async {
+      // The device bug (2026-09-02): the app rebuilds its page list on every
+      // state emit — saving a MARK, for one — and ObjectKey(page) read the
+      // recreated object as a different page, so the scroll view was thrown
+      // away and the reader landed back at the first paragraph. Pages with an
+      // id are keyed by it now. On the ObjectKey code this test fails at the
+      // offset assert.
+      final longBody =
+          List.generate(60, (i) => 'Paragraph $i line.').join('\n');
+      List<FlipBookPage> pages() => [
+            FlipBookPage(id: 'j1', bodySegments: [longBody]),
+            const FlipBookPage(id: 'j2', bodySegments: ['Second page.']),
+          ];
+      Widget book() => MaterialApp(
+            home: FlipBook(
+              onClose: () {},
+              swipe: const FlipBookSwipe(hint: null),
+              pages: FlipBookPages(items: pages()),
+            ),
+          );
+
+      await tester.pumpWidget(book());
+      await tester.pump(const Duration(milliseconds: 400));
+
+      final scrollable = find.byType(Scrollable).first;
+      await tester.drag(scrollable, const Offset(0, -600));
+      await tester.pump();
+      final before = tester.state<ScrollableState>(scrollable).position.pixels;
+      expect(before, greaterThan(0), reason: 'the reader has scrolled down');
+
+      // The app's case: same content, brand-new objects.
+      await tester.pumpWidget(book());
+      await tester.pump();
+
+      final after = tester.state<ScrollableState>(scrollable).position.pixels;
+      expect(after, before,
+          reason: 'recreated-but-equal config must not cost the reader '
+              'their place');
+
+      // The key must stay per-page: flipping forward opens page two at ITS
+      // top, never inheriting page one's offset.
+      await tester.fling(
+          find.textContaining('Paragraph 59'), const Offset(-220, 0), 900);
+      await _finishFlip(tester);
+      expect(find.text('Second page.'), findsOneWidget);
+      final pageTwo = tester
+          .state<ScrollableState>(find.byType(Scrollable).first)
+          .position
+          .pixels;
+      expect(pageTwo, 0, reason: 'a fresh page opens at its top');
+    });
+  });
+
+  group('Past the end (END)', () {
+    testWidgets(
+        'END-01: a forward swipe on the last page fires onFlipPastEnd; '
+        'backward on page one stays meaningless; null changes nothing',
+        (tester) async {
+      var pastEnd = 0;
+      await tester.pumpWidget(MaterialApp(
+        home: FlipBook(
+          onClose: () {},
+          onFlipPastEnd: () => pastEnd++,
+          pages: FlipBookPages(items: const [
+            FlipBookPage(title: 'One', body: Text('page one')),
+            FlipBookPage(title: 'Two', body: Text('page two')),
+          ]),
+        ),
+      ));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // Backward on the first page: no previous page, and no callback — the
+      // hook is strictly about the END of the book.
+      await tester.fling(find.text('page one'), const Offset(220, 0), 900);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(pastEnd, 0);
+
+      // Forward to the last page, then forward again — THAT is the moment.
+      await tester.fling(find.text('page one'), const Offset(-220, 0), 900);
+      await _finishFlip(tester);
+      expect(find.text('page two'), findsOneWidget);
+
+      await tester.fling(find.text('page two'), const Offset(-220, 0), 900);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(pastEnd, 1, reason: 'the impossible forward flip is the signal');
+      expect(find.text('page two'), findsOneWidget,
+          reason: 'the book itself still does not move');
+    });
+
+    testWidgets('END-02: without the hook, the last page still eats the swipe',
+        (tester) async {
+      // The default is the long-standing behaviour, byte for byte.
+      await tester.pumpWidget(MaterialApp(
+        home: FlipBook(
+          onClose: () {},
+          pages: FlipBookPages(items: const [
+            FlipBookPage(title: 'One', body: Text('page one')),
+          ]),
+        ),
+      ));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      await tester.fling(find.text('page one'), const Offset(-220, 0), 900);
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text('page one'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('Header close position (HDR)', () {
+    testWidgets(
+        'HDR-01: closeAtEnd swaps the x with the action; the default keeps '
+        'the x leading', (tester) async {
+      Future<(double, double)> positions(FlipBookHeader header) async {
+        await tester.pumpWidget(MaterialApp(
+          home: FlipBook(
+            onClose: () {},
+            header: header,
+            pages: FlipBookPages(items: const [
+              FlipBookPage(title: 'One', body: Text('page one')),
+            ]),
+          ),
+        ));
+        await tester.pump(const Duration(milliseconds: 400));
+        final close = tester.getCenter(find.byTooltip('Close')).dx;
+        final action = tester.getCenter(find.byKey(const Key('act'))).dx;
+        return (close, action);
+      }
+
+      const action = SizedBox(key: Key('act'), width: 24, height: 24);
+
+      final (closeLeading, actionTrailing) =
+          await positions(const FlipBookHeader(action: action));
+      expect(closeLeading, lessThan(actionTrailing),
+          reason: 'default: the x leads, as it always has');
+
+      final (closeTrailing, actionLeading) = await positions(
+          const FlipBookHeader(action: action, closeAtEnd: true));
+      expect(closeTrailing, greaterThan(actionLeading),
+          reason: 'closeAtEnd: the two swap places');
+    });
+  });
+
+  group('Footer width (FTR)', () {
+    testWidgets(
+        'FTR-01: horizontalInset stretches the bar to the page width minus '
+        'the inset; the default stays content-sized', (tester) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      Future<double> barWidth(FlipBookFooter footerConfig) async {
+        await tester.pumpWidget(MaterialApp(
+          home: FlipBook(
+            onClose: () {},
+            footer: footerConfig,
+            pages: FlipBookPages(items: const [
+              FlipBookPage(title: 'One', body: Text('page one')),
+              FlipBookPage(title: 'Two', body: Text('page two')),
+            ]),
+          ),
+        ));
+        await tester.pump(const Duration(milliseconds: 400));
+        // The bar's surface is the DecoratedBox carrying the footer colour.
+        final box = find.byWidgetPredicate((w) =>
+            w is DecoratedBox &&
+            (w.decoration as BoxDecoration?)?.color == footerConfig.color);
+        return tester.getSize(box.first).width;
+      }
+
+      final stretched =
+          await barWidth(const FlipBookFooter(horizontalInset: 32));
+      expect(stretched, 400 - 64,
+          reason: 'the bar edges must sit exactly at the inset');
+
+      final packed = await barWidth(const FlipBookFooter());
+      expect(packed, lessThan(400 - 24),
+          reason: 'without an inset the bar stays content-sized, as before');
     });
   });
 
@@ -1564,6 +1830,42 @@ void main() {
 
     Finder pencil() => find.byIcon(Icons.edit_outlined);
     Finder trash() => find.byIcon(Icons.delete_outline);
+
+    testWidgets(
+        'MRK-16: the lit pencil wears activeColor, not the wash made opaque',
+        (tester) async {
+      // The device bug (2026-09-02): the app's mark wash and its footer bar
+      // are the same rose family, so the wash-made-opaque pencil VANISHED
+      // into the bar the moment marking switched on. activeColor is the
+      // pencil's own voice — the same parameter bookmarks earned on
+      // 2026-08-23 for the same disappearance.
+      const active = Color(0xFF2C1654);
+      await tester.pumpWidget(MaterialApp(
+        home: FlipBook(
+          onClose: () {},
+          swipe: const FlipBookSwipe(hint: null),
+          marker: const FlipBookMarker(activeColor: active),
+          pages: FlipBookPages(items: const [
+            FlipBookPage(id: 'p1', bodySegments: ['One two three.']),
+            FlipBookPage(id: 'p2', bodySegments: ['Second page.']),
+          ]),
+        ),
+      ));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      Color pencilColor() =>
+          tester.widget<Icon>(find.byIcon(Icons.edit_outlined)).color!;
+
+      final idle = pencilColor();
+      expect(idle, isNot(active), reason: 'off = the ordinary icon colour');
+
+      await tester.tap(find.byIcon(Icons.edit_outlined));
+      await tester.pump();
+
+      expect(pencilColor(), active,
+          reason: 'on = activeColor, never the wash — a wash that matches '
+              'the bar would make the pencil invisible');
+    });
 
     testWidgets(
         'MRK-07: the pencil shows only when marking is on and the page has '
