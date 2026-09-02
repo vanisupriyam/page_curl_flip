@@ -5,7 +5,7 @@ real paper — perspective, diffuse shadow, and a specular sheen included.
 
 **Zero dependencies.** The package is a skeleton you decorate: every colour,
 label, and icon is replaceable, and sound, speech, and storage are callbacks
-you plug anything into. RTL-aware. Works on Android, iOS, web, and desktop.
+you plug anything into. RTL-aware. Tested on Android and iOS — the two platforms the listing promises; it is pure Flutter with zero dependencies, so it may well render elsewhere, but only what is tested is claimed.
 
 ![page_curl_flip demo — LTR and RTL books, swipes, buttons, and read-aloud](https://raw.githubusercontent.com/vanisupriyam/page_curl_flip/main/doc/demo.gif)
 

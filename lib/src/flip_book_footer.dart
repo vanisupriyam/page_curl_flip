@@ -22,6 +22,7 @@ class FlipBookFooter {
     this.tapLabelFor = const Duration(seconds: 3),
     this.tapLabelStyle = _tapLabel,
     this.tapLabelColor = const Color(0xE6202020),
+    this.horizontalInset,
     this.iconSize = 26,
     this.iconColor = Colors.black54,
     this.pageNumberStyle = _footerLabel,
@@ -69,6 +70,15 @@ class FlipBookFooter {
   /// Background behind it.
   final Color tapLabelColor;
 
+  /// Stretches the bar to the page's width, minus this much on each side.
+  ///
+  /// Null — the default — keeps the bar content-sized, hugging its icons.
+  /// Pass the same value as the page's horizontal text padding and the bar's
+  /// edges line up with the text column, which is the look a book wants: the
+  /// controls belong to the page, not to a floating pill. The controls spread
+  /// evenly across whatever width they are given.
+  final double? horizontalInset;
+
   /// Size of every footer icon.
   final double iconSize;
 
@@ -100,6 +110,7 @@ class FlipBookFooter {
     Duration? tapLabelFor,
     TextStyle? tapLabelStyle,
     Color? tapLabelColor,
+    double? horizontalInset,
     double? iconSize,
     Color? iconColor,
     TextStyle? pageNumberStyle,
@@ -115,6 +126,7 @@ class FlipBookFooter {
       tapLabelFor: tapLabelFor ?? this.tapLabelFor,
       tapLabelStyle: tapLabelStyle ?? this.tapLabelStyle,
       tapLabelColor: tapLabelColor ?? this.tapLabelColor,
+      horizontalInset: horizontalInset ?? this.horizontalInset,
       iconSize: iconSize ?? this.iconSize,
       iconColor: iconColor ?? this.iconColor,
       pageNumberStyle: pageNumberStyle ?? this.pageNumberStyle,

@@ -14,7 +14,8 @@ ids=(
   TTS-13
   # TTS-14 retired 2026-08-18: the progress bar it covered was removed in
   # favour of the read marker (v0.2) — the MRK ids below took its place.
-  TTS-15 TTS-16 TTS-17
+  TTS-15 TTS-16 TTS-17 TTS-18 TTS-19
+  FTR-01 END-01 END-02 HDR-01 MRK-16 SCR-01
   MRK-01 MRK-02 MRK-03 MRK-04 MRK-05 MRK-06 MRK-07 MRK-08 MRK-09
   SPD-01 SPD-02
   MRK-10 MRK-11 MRK-13 MRK-14
