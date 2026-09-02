@@ -163,6 +163,9 @@ marker: FlipBookMarker(
   page only.
 - Marks are stored against `FlipBookPage.id`, never the page number, so
   reordering pages cannot move them. No `id`, no pencil.
+- The lit pencil defaults to the mark wash made opaque. If your wash and
+  footer bar share a colour family the pencil disappears into the bar —
+  give it its own voice: `FlipBookMarker(activeColor: Colors.deepPurple)`.
 - **The package stores nothing.** `ReaderMark` is plain primitives
   (`toMap` / `fromMap`) — persist with whatever your app already uses.
 
@@ -216,6 +219,27 @@ footer: FlipBookFooter(
 ```
 
 `header: null` / `footer: null` removes an element entirely.
+
+Three more knobs, each defaulting to the long-standing look:
+
+```dart
+// The bar stretches to the page width minus the inset, so its edges meet
+// your text column; the controls spread evenly. Null keeps it content-sized.
+footer: const FlipBookFooter(horizontalInset: 32),
+
+// The x at the trailing edge, swapping places with the header action.
+// Mirrors under RTL by itself.
+header: const FlipBookHeader(closeAtEnd: true),
+
+// A forward swipe on the LAST page is the one flip the book cannot honour.
+// By default the gesture is simply eaten; give it a meaning of your own —
+// the classic is closing the book from its back cover. Never fired by the
+// controller or the read-aloud chain, only by a real gesture.
+FlipBook(
+  onFlipPastEnd: () => Navigator.of(context).pop(),
+  // ...
+)
+```
 
 ## Your own buttons, anywhere
 
