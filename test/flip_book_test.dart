@@ -1278,6 +1278,66 @@ void main() {
     });
   });
 
+  group('Footer stretch stability (FTR-02)', () {
+    testWidgets(
+        'FTR-02: in a stretched bar, the trash appearing after a save keeps '
+        'every control on ONE line', (tester) async {
+      // The device sequence (2026-09-02, iPhone): mark, tap the save tick —
+      // the trash joins the row, the fixed-width Wrap overflows, and NEXT
+      // lands centred on a second line while the footer grows taller.
+      // The app's real footer on a small phone: eight controls — index,
+      // bookmark, save, pencil, trash, mute, prev, next — in 320 minus the
+      // insets. Guaranteed overflow, which is the condition under test.
+      tester.view.physicalSize = const Size(320, 568);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(MaterialApp(
+        home: FlipBook(
+          onClose: () {},
+          swipe: const FlipBookSwipe(hint: null),
+          footer: FlipBookFooter(
+            horizontalInset: 32,
+            sound: FlipBookSound(onFlip: () async {}),
+          ),
+          marker: FlipBookMarker(
+            marks: const [
+              ReaderMark(pageId: 'p1', segment: 0, start: 0, end: 3),
+            ],
+            onChanged: (_) {},
+          ),
+          bookmarks: FlipBookBookmarks(
+            onBookmark: (_) {},
+            saved: const {},
+            onSavedChanged: (_) {},
+          ),
+          pages: FlipBookPages(items: const [
+            FlipBookPage(id: 'p1', title: 'One', bodySegments: ['One two.']),
+            FlipBookPage(id: 'p2', title: 'Two', bodySegments: ['Second.']),
+          ]),
+        ),
+      ));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // A mark exists, so the trash is in the row alongside everything else.
+      expect(find.byIcon(Icons.delete_outline), findsOneWidget);
+
+      final rows = {
+        'INDEX': tester.getCenter(find.byIcon(Icons.list)).dy,
+        'PENCIL': tester.getCenter(find.byIcon(Icons.edit_outlined)).dy,
+        'TRASH': tester.getCenter(find.byIcon(Icons.delete_outline)).dy,
+        'NEXT': tester.getCenter(find.byIcon(Icons.chevron_right)).dy,
+      };
+      final line = rows['INDEX']!;
+      rows.forEach((name, dy) {
+        expect((dy - line).abs(), lessThan(2),
+            reason: '$name must share the single control line — a fixed-width '
+                'bar spreads, it never wraps (device find, 2026-09-02)');
+      });
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   group('Past the end (END)', () {
     testWidgets(
         'END-01: a forward swipe on the last page fires onFlipPastEnd; '

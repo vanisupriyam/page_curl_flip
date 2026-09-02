@@ -1,3 +1,14 @@
+## 0.2.3
+
+* **Fixed: a stretched footer never wraps.** With `horizontalInset` set the
+  bar's width is fixed, so a control joining the row mid-session — the trash
+  appearing after a first saved mark — pushed the last control onto a second
+  centred line and grew the footer. A stretched bar now gives every control an
+  equal slot and scales them down together instead; height stays constant.
+  The default content-sized bar keeps its wrap-on-narrow behaviour exactly
+  (goldens unchanged). (FTR-02)
+* README: examples for the four 0.2.2 parameters.
+
 ## 0.2.2
 
 Bug-fix release.

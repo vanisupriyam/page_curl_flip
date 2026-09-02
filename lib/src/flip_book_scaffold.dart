@@ -406,106 +406,125 @@ class _FlipBookScaffold extends StatelessWidget {
     // `Wrap` with `spaceEvenly` spreads every control across the whole bar
     // and, unlike a `Row`, drops to a second line instead of overflowing on
     // a narrow phone. Nothing is ever scaled down to make it fit.
-    return Wrap(
-      alignment: WrapAlignment.spaceEvenly,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      runSpacing: 2,
+    //
+    // 🔴 EXCEPT in a stretched bar (FTR-02, found on device 2026-09-02): its
+    // width is fixed, so when the trash joined the row after a first save,
+    // the Wrap pushed NEXT onto a second centred line and the whole footer
+    // grew mid-session. A fixed-width bar therefore gives every control an
+    // EQUAL slot and lets each scale down a touch instead — all of them
+    // together, uniformly, which is exactly what the old three-group layout
+    // failed to do (it shrank one crowded group while its neighbours kept
+    // empty space). Height stays constant; a control appearing just
+    // redistributes the line.
+    final controls = [
+      if (hasIndex && onToggleIndex != null)
+        _control(
+          content: footer.index.child,
+          icon: footer.index.icon,
+          label: footer.index.label,
+          color: footer.iconColor,
+          onTap: onToggleIndex!,
+        ),
+      if (onBookmark != null)
+        _control(
+          content: isBookmarked
+              ? bookmarks?.bookmarkedChild
+              : bookmarks?.bookmarkChild,
+          icon: isBookmarked
+              ? (bookmarks?.bookmarkedIcon ?? Icons.bookmark)
+              : (bookmarks?.bookmarkIcon ?? Icons.bookmark_border),
+          label: isBookmarked
+              ? (bookmarks?.bookmarkedLabel ?? '')
+              : (bookmarks?.bookmarkLabel ?? ''),
+          color: isBookmarked
+              ? (bookmarks?.activeColor ?? bookmarks?.color ?? footer.iconColor)
+              : (bookmarks?.color ?? footer.iconColor),
+          onTap: onBookmark!,
+        ),
+      if (onToggleSaved != null)
+        _control(
+          content: isSaved ? bookmarks?.savedChild : bookmarks?.saveChild,
+          icon: isSaved
+              // A star reads as "favourite". These pages are the ones the
+              // reader collects and exports, so the glyph says "add to my
+              // set" and, once added, says it is in.
+              ? (bookmarks?.savedIcon ?? Icons.library_add_check)
+              : (bookmarks?.saveIcon ?? Icons.library_add),
+          label: isSaved
+              ? (bookmarks?.unsaveLabel ?? '')
+              : (bookmarks?.saveLabel ?? ''),
+          color: isSaved
+              ? (bookmarks?.activeColor ?? bookmarks?.color ?? footer.iconColor)
+              : (bookmarks?.color ?? footer.iconColor),
+          onTap: onToggleSaved!,
+        ),
+      if (onToggleMarking != null)
+        _control(
+          content: marker?.pencil,
+          icon: Icons.edit_outlined,
+          label:
+              marking ? (marker?.stopLabel ?? '') : (marker?.pencilLabel ?? ''),
+          // The pencil stays lit while marking is on, so the
+          // reader can see why swiping stopped turning pages.
+          // activeColor first: the wash-made-opaque fallback vanishes the
+          // moment wash and footer share a family (MRK-16).
+          color: marking
+              ? (marker?.activeColor ??
+                  (marker?.color ?? const Color(0x338A8A8A))
+                      .withValues(alpha: 1))
+              : footer.iconColor,
+          onTap: onToggleMarking!,
+        ),
+      if (onClearMarks != null)
+        _control(
+          content: marker?.clear,
+          icon: Icons.delete_outline,
+          label: (marker?.clearLabel ?? ''),
+          color: footer.iconColor,
+          onTap: onClearMarks!,
+        ),
+      if (pageNumber != null)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: Text(pageNumber!, style: footer.pageNumberStyle),
+        ),
+      // A Row reverses its children under RTL, so "previous" lands on
+      // the right — but the GLYPH is not mirrored with it, which showed an
+      // Arabic reader "> <" where the arrows should read "< >". Swap the
+      // default chevrons so each still points the way it travels. A caller
+      // who supplied their own icon or child gets it untouched: mirroring
+      // someone else's artwork would be a guess.
+      if (onPrev != null)
+        _navControl(
+          content: footer.nav.previousChild,
+          icon: _navIcon(footer.nav.previousIcon, back: true, rtl: rtl),
+          label: footer.nav.previousLabel,
+          onTap: onPrev!,
+        ),
+      if (onNext != null)
+        _navControl(
+          content: footer.nav.nextChild,
+          icon: _navIcon(footer.nav.nextIcon, back: false, rtl: rtl),
+          label: footer.nav.nextLabel,
+          onTap: onNext!,
+        ),
+    ];
+    if (footer.horizontalInset == null) {
+      return Wrap(
+        alignment: WrapAlignment.spaceEvenly,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        runSpacing: 2,
+        children: controls,
+      );
+    }
+    return Row(
       children: [
-        if (hasIndex && onToggleIndex != null)
-          _control(
-            content: footer.index.child,
-            icon: footer.index.icon,
-            label: footer.index.label,
-            color: footer.iconColor,
-            onTap: onToggleIndex!,
-          ),
-        if (onBookmark != null)
-          _control(
-            content: isBookmarked
-                ? bookmarks?.bookmarkedChild
-                : bookmarks?.bookmarkChild,
-            icon: isBookmarked
-                ? (bookmarks?.bookmarkedIcon ?? Icons.bookmark)
-                : (bookmarks?.bookmarkIcon ?? Icons.bookmark_border),
-            label: isBookmarked
-                ? (bookmarks?.bookmarkedLabel ?? '')
-                : (bookmarks?.bookmarkLabel ?? ''),
-            color: isBookmarked
-                ? (bookmarks?.activeColor ??
-                    bookmarks?.color ??
-                    footer.iconColor)
-                : (bookmarks?.color ?? footer.iconColor),
-            onTap: onBookmark!,
-          ),
-        if (onToggleSaved != null)
-          _control(
-            content: isSaved ? bookmarks?.savedChild : bookmarks?.saveChild,
-            icon: isSaved
-                // A star reads as "favourite". These pages are the ones the
-                // reader collects and exports, so the glyph says "add to my
-                // set" and, once added, says it is in.
-                ? (bookmarks?.savedIcon ?? Icons.library_add_check)
-                : (bookmarks?.saveIcon ?? Icons.library_add),
-            label: isSaved
-                ? (bookmarks?.unsaveLabel ?? '')
-                : (bookmarks?.saveLabel ?? ''),
-            color: isSaved
-                ? (bookmarks?.activeColor ??
-                    bookmarks?.color ??
-                    footer.iconColor)
-                : (bookmarks?.color ?? footer.iconColor),
-            onTap: onToggleSaved!,
-          ),
-        if (onToggleMarking != null)
-          _control(
-            content: marker?.pencil,
-            icon: Icons.edit_outlined,
-            label: marking
-                ? (marker?.stopLabel ?? '')
-                : (marker?.pencilLabel ?? ''),
-            // The pencil stays lit while marking is on, so the
-            // reader can see why swiping stopped turning pages.
-            // activeColor first: the wash-made-opaque fallback vanishes the
-            // moment wash and footer share a family (MRK-16).
-            color: marking
-                ? (marker?.activeColor ??
-                    (marker?.color ?? const Color(0x338A8A8A))
-                        .withValues(alpha: 1))
-                : footer.iconColor,
-            onTap: onToggleMarking!,
-          ),
-        if (onClearMarks != null)
-          _control(
-            content: marker?.clear,
-            icon: Icons.delete_outline,
-            label: (marker?.clearLabel ?? ''),
-            color: footer.iconColor,
-            onTap: onClearMarks!,
-          ),
-        if (pageNumber != null)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Text(pageNumber!, style: footer.pageNumberStyle),
-          ),
-        // A Row reverses its children under RTL, so "previous" lands on
-        // the right — but the GLYPH is not mirrored with it, which showed an
-        // Arabic reader "> <" where the arrows should read "< >". Swap the
-        // default chevrons so each still points the way it travels. A caller
-        // who supplied their own icon or child gets it untouched: mirroring
-        // someone else's artwork would be a guess.
-        if (onPrev != null)
-          _navControl(
-            content: footer.nav.previousChild,
-            icon: _navIcon(footer.nav.previousIcon, back: true, rtl: rtl),
-            label: footer.nav.previousLabel,
-            onTap: onPrev!,
-          ),
-        if (onNext != null)
-          _navControl(
-            content: footer.nav.nextChild,
-            icon: _navIcon(footer.nav.nextIcon, back: false, rtl: rtl),
-            label: footer.nav.nextLabel,
-            onTap: onNext!,
+        for (final control in controls)
+          Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: control,
+            ),
           ),
       ],
     );
